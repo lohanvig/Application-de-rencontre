@@ -1,15 +1,19 @@
 from app.database.supabase_client import supabase
 import bcrypt
 
-def create_user(username, email, password, age, bio):
-
+def create_or_get_user(username, email, password, age, bio):
+    """
+    Crée un utilisateur ou récupère son ID si l'email existe déjà
+    """
     # vérifier si email existe
-    existing = supabase.table("users").select("id").eq("email", email).execute()
+    existing = supabase.table("users").select("*").eq("email", email).execute()
 
     if existing.data:
-        print("Email déjà utilisé")
-        return None
+        print("Email déjà utilisé, récupération de l'utilisateur existant")
+        user_id = existing.data[0]["id"]
+        return {"id": user_id}
 
+    # créer mot de passe hashé
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     data = {
@@ -22,7 +26,12 @@ def create_user(username, email, password, age, bio):
 
     response = supabase.table("users").insert(data).execute()
 
-    return response.data
+    if not response.data:
+        raise Exception("Erreur lors de la création de l'utilisateur")
+
+    user_id = response.data[0]["id"]
+    print("Nouvel utilisateur créé :", user_id)
+    return {"id": user_id}
 
 def login_user(email, password):
 
