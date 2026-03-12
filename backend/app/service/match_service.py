@@ -6,7 +6,7 @@ def check_and_create_match(user_id, liked_user_id):
     Retourne (is_match: bool, match_id: str | None)
     """
     # 1️⃣ vérifier si liked_user_id a déjà liké user_id
-    response = supabase.table("like").select("*").eq("user_id", liked_user_id).eq("liked_user_id", user_id).execute()
+    response = supabase.table("likes").select("*").eq("user_id", liked_user_id).eq("liked_user_id", user_id).execute()
     already_liked = bool(response.data)
 
     if already_liked:
