@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import supabase
+from app.database.supabase_client import supabase
 
 from app.service.user_service import create_or_get_user
 from app.service.photo_service import upload_photo

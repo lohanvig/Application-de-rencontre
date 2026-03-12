@@ -74,7 +74,7 @@ export default function MatchScreen({ route, navigation }) {
       <View style={styles.photos}>
 
         <Image
-          source={{ uri: "https://i.pravatar.cc/300" }}
+          source={{ uri: userPhoto }}
           style={styles.avatar}
         />
 
