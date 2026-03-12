@@ -10,7 +10,6 @@ def get_profiles_to_swipe(user_id):
         .execute()
 
     liked_ids = []
-
     if liked.data:
         liked_ids = [row["liked_user_id"] for row in liked.data]
 
