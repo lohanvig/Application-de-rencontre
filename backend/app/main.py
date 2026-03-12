@@ -5,6 +5,7 @@ from app.service.user_service import create_or_get_user
 from app.service.photo_service import upload_photo
 from app.service.interaction_service import get_profiles_to_swipe, add_like
 from app.models.schemas import UserCreate, LikeAction
+from app.service.profil_service import get_profiles
 
 app = FastAPI(title="API V1 - Application de Rencontre")
 
@@ -91,3 +92,7 @@ def matches_endpoint(user_id: str):
     ).execute()
 
     return {"matches": matches.data}
+
+@app.get("/profiles")
+def profiles(user_id: int):
+    return get_profiles(user_id)
