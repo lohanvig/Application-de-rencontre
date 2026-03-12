@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+import supabase
 
 from app.service.user_service import create_or_get_user
 from app.service.photo_service import upload_photo
@@ -53,6 +54,35 @@ def upload_photo_endpoint(user_id: str, file: UploadFile = File(...)):
     url = upload_photo(user_id, path, filename)
 
     return {"photo_url": url}
+
+@app.get("/user/{user_id}")
+def get_user(user_id: str):
+
+    user = supabase.table("users") \
+        .select("*") \
+        .eq("id", user_id) \
+        .execute()
+
+    if not user.data:
+        return {"error": "User not found"}
+
+    u = user.data[0]
+
+    photo = supabase.table("photos") \
+        .select("photo_url") \
+        .eq("user_id", user_id) \
+        .eq("is_main", True) \
+        .execute()
+
+    photo_url = photo.data[0]["photo_url"] if photo.data else None
+
+    return {
+        "id": u["id"],
+        "username": u["username"],
+        "age": u["age"],
+        "bio": u["bio"],
+        "photo_url": photo_url
+    }
 
 
 # 3️⃣ Récupérer profils à swiper

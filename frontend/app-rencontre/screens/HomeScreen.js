@@ -1,52 +1,69 @@
 import React, { useEffect, useState } from "react";
-import { 
-  View, 
-  StyleSheet, 
-  ActivityIndicator, 
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
   Text,
   TouchableOpacity
 } from "react-native";
 import API from "../api/api";
 import SwipeCard from "../components/SwipeCard";
 
-export default function HomeScreen({ route }) {
+export default function HomeScreen({ route, navigation }) {
 
   const { userId } = route.params;
-  
 
   const [profiles, setProfiles] = useState([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  
+  const [myPhoto, setMyPhoto] = useState(null);
 
   useEffect(() => {
     loadProfiles();
+    loadMyPhoto();
   }, []);
 
   const loadProfiles = async () => {
 
-  try {
+    try {
 
-    console.log("USER ID:", userId);
+      console.log("USER ID:", userId);
 
-    const response = await API.get(`/profiles/${userId}`);
+      const response = await API.get(`/profiles/${userId}`);
 
-    console.log("RESPONSE:", response.data);
+      console.log("PROFILES:", response.data);
 
-    setProfiles(response.data.profiles);
+      setProfiles(response.data.profiles || []);
 
-  } catch (error) {
+    } catch (error) {
 
-    console.log("API ERROR:", error);
-    console.log("API ERROR RESPONSE:", error.response);
+      console.log("API ERROR:", error);
 
-  } finally {
+    } finally {
 
-    setLoading(false);
+      setLoading(false);
 
-  }
+    }
 
-};
+  };
+
+  const loadMyPhoto = async () => {
+
+    try {
+
+      const res = await API.get(`/user/${userId}`);
+
+      console.log("USER API RESPONSE:", res.data);
+
+      setMyPhoto(res.data.photo_url);
+
+    } catch (error) {
+
+      console.log("PHOTO ERROR:", error);
+
+    }
+
+  };
 
   const nextProfile = () => {
     setIndex((prev) => prev + 1);
@@ -56,18 +73,31 @@ export default function HomeScreen({ route }) {
 
     try {
 
-      await API.post("/like", {
+      const response = await API.post("/like", {
         user_id: userId,
         liked_user_id: likedUserId
       });
 
+      console.log("LIKE RESPONSE:", response.data);
+
+      if (response.data.is_match) {
+
+        console.log("MATCH DETECTED");
+
+        navigation.navigate("Match", {
+          match: currentProfile,
+          userPhoto: myPhoto
+        });
+
+      }
+
+      nextProfile();
+
     } catch (error) {
 
-      console.log("LIKE ERROR :", error);
+      console.log("LIKE ERROR:", error);
 
     }
-
-    nextProfile();
 
   };
 
@@ -75,7 +105,7 @@ export default function HomeScreen({ route }) {
     nextProfile();
   };
 
-  // ⏳ chargement
+  // Chargement
   if (loading) {
     return (
       <View style={styles.center}>
@@ -84,7 +114,7 @@ export default function HomeScreen({ route }) {
     );
   }
 
-  // 😢 plus de profils
+  // Plus de profils
   if (index >= profiles.length) {
     return (
       <View style={styles.center}>
@@ -98,7 +128,7 @@ export default function HomeScreen({ route }) {
   return (
     <View style={styles.container}>
 
-      {/* Zone carte */}
+      {/* Zone cartes */}
       <View style={styles.cardArea}>
 
         {profiles[index + 1] && (
@@ -195,4 +225,3 @@ const styles = StyleSheet.create({
   }
 
 });
-
