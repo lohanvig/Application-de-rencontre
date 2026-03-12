@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet } from "react-native";
+import { View, Text, TextInput, StyleSheet, Alert } from "react-native";
 import API from "../api/api";
 import PrimaryButton from "../components/PrimaryButton";
 import { colors } from "../styles/theme.js";
@@ -10,15 +10,26 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState("");
 
   const login = async () => {
+    try {
 
-    const response = await API.post("/login", {
-      email,
-      password
-    });
+      const response = await API.post("/user", {
+        username: email.split("@")[0], // simple username
+        email: email,
+        password: password,
+        age: 25,
+        bio: "Hello 👋"
+      });
 
-    navigation.navigate("Home", {
-      userId: response.data.user_id
-    });
+      const userId = response.data.user_id;
+
+      navigation.navigate("Home", {
+        userId: userId
+      });
+
+    } catch (error) {
+      console.log(error);
+      Alert.alert("Error", "Login failed");
+    }
   };
 
   return (
@@ -29,7 +40,9 @@ export default function LoginScreen({ navigation }) {
       <TextInput
         placeholder="Email"
         style={styles.input}
+        autoCapitalize="none"
         onChangeText={setEmail}
+        value={email}
       />
 
       <TextInput
@@ -37,6 +50,7 @@ export default function LoginScreen({ navigation }) {
         secureTextEntry
         style={styles.input}
         onChangeText={setPassword}
+        value={password}
       />
 
       <PrimaryButton title="Login" onPress={login} />
@@ -83,4 +97,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: colors.primary
   }
+
 });
