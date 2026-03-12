@@ -3,26 +3,22 @@ from app.service.match_service import check_and_create_match
 
 
 def get_profiles_to_swipe(user_id):
-    """
-    Récupère les profils non encore likés par l'utilisateur
-    et leur photo principale
-    """
 
-    # récupérer les ids déjà likés
     liked = supabase.table("likes") \
         .select("liked_user_id") \
         .eq("user_id", user_id) \
         .execute()
 
-    liked_ids = [row["liked_user_id"] for row in liked.data] if liked.data else []
+    liked_ids = []
 
-    # récupérer les utilisateurs différents de l'utilisateur
-    query = supabase.table("users") \
-        .select("*") \
-        .neq("id", user_id)
+    if liked.data:
+        liked_ids = [row["liked_user_id"] for row in liked.data]
+
+    query = supabase.table("users").select("*").neq("id", user_id)
 
     if liked_ids:
-        query = query.not_("id", f"in.({','.join(liked_ids)})")
+        ids = ",".join(liked_ids)
+        query = query.not_("id", f"in.({ids})")
 
     users = query.execute().data or []
 
@@ -30,23 +26,19 @@ def get_profiles_to_swipe(user_id):
 
     for u in users:
 
-        # récupérer la photo principale
         photos = supabase.table("photos") \
             .select("photo_url") \
             .eq("user_id", u["id"]) \
             .eq("is_main", True) \
-            .limit(1) \
             .execute()
 
-        photo_url = None
-        if photos.data:
-            photo_url = photos.data[0]["photo_url"]
+        photo_url = photos.data[0]["photo_url"] if photos.data else None
 
         profiles.append({
             "id": u["id"],
             "username": u["username"],
-            "bio": u.get("bio"),
-            "age": u.get("age"),
+            "age": u["age"],
+            "bio": u["bio"],
             "photo_url": photo_url
         })
 
