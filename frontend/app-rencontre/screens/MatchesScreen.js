@@ -10,7 +10,7 @@ import {
 import API from "../api/api";
 
 export default function MatchListScreen({ route, navigation }) {
-
+  // on récupère l'ID de l'utilisateur connecté depuis la navigation
   const userId = route?.params?.userId;
   const [matches, setMatches] = useState([]);
 
@@ -27,10 +27,12 @@ export default function MatchListScreen({ route, navigation }) {
     }
   };
 
+  // fonction pour ouvrir le chat, avec passage de currentUserId
   const openChat = (item) => {
     navigation.navigate("ChatScreen", {
-      matchId: item.match_id, // ⚠️ important
-      user: item
+      matchId: item.match_id,   // ID du match
+      user: item,               // infos de l'autre utilisateur
+      currentUserId: userId     // ID de l'utilisateur connecté
     });
   };
 
@@ -39,7 +41,6 @@ export default function MatchListScreen({ route, navigation }) {
       style={styles.matchItem}
       onPress={() => openChat(item)}
     >
-
       <Image
         source={{ uri: item.photo_url }}
         style={styles.avatar}
@@ -47,18 +48,15 @@ export default function MatchListScreen({ route, navigation }) {
 
       <View style={styles.info}>
         <Text style={styles.name}>{item.username}</Text>
-
         <Text style={styles.lastMessage}>
           {item.last_message || "Démarre la conversation 👀"}
         </Text>
       </View>
-
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-
       <FlatList
         data={matches}
         keyExtractor={(item) => item.match_id.toString()}
@@ -72,13 +70,11 @@ export default function MatchListScreen({ route, navigation }) {
           </View>
         }
       />
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: "#fff"
@@ -124,5 +120,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#555"
   }
-
 });

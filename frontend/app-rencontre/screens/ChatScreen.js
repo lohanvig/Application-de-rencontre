@@ -10,13 +10,15 @@ import {
 import API from "../api/api";
 
 export default function ChatScreen({ route }) {
-  const { matchId, user, userId } = route.params; // récupère userId réel
+  // ✅ récupère tout depuis la navigation
+  const { matchId, user, currentUserId } = route.params;
 
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
 
   const flatListRef = useRef();
 
+  // charge les messages existants
   useEffect(() => {
     loadMessages();
   }, []);
@@ -30,31 +32,31 @@ export default function ChatScreen({ route }) {
     }
   };
 
+  // envoi un nouveau message
   const sendMessage = async () => {
     if (!text.trim()) return;
 
-    const newMessage = {
-      content: text,
-      sender_id: userId // maintenant c'est le vrai ID
+    const payload = {
+      match_id: matchId,       // doit être UUID string
+      sender_id: currentUserId, // vrai ID de l'utilisateur connecté
+      content: text
     };
 
-    // ajoute le message localement pour instant feedback
-    setMessages((prev) => [...prev, newMessage]);
+    console.log("Sending message:", payload);
+
+    // ajoute localement pour UX instantanée
+    setMessages((prev) => [...prev, payload]);
     setText("");
 
     try {
-      await API.post("/messages", {
-        match_id: matchId,
-        sender_id: userId, // ⚡ important
-        content: text
-      });
+      await API.post("/messages", payload);
     } catch (err) {
       console.log("SEND MESSAGE ERROR:", err);
     }
   };
 
   const renderItem = ({ item }) => {
-    const isMe = item.sender_id === userId;
+    const isMe = item.sender_id === currentUserId;
     return (
       <View style={[styles.message, isMe ? styles.myMessage : styles.otherMessage]}>
         <Text>{item.content}</Text>
