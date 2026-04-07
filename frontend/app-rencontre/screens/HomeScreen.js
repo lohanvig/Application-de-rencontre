@@ -6,12 +6,14 @@ import {
   Text,
   TouchableOpacity
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import API from "../api/api";
 import SwipeCard from "../components/SwipeCard";
 
 export default function HomeScreen({ route, navigation }) {
 
-  const { userId } = route.params;
+  const userId = route?.params?.userId;
 
   const [profiles, setProfiles] = useState([]);
   const [index, setIndex] = useState(0);
@@ -19,50 +21,29 @@ export default function HomeScreen({ route, navigation }) {
   const [myPhoto, setMyPhoto] = useState(null);
 
   useEffect(() => {
-    loadProfiles();
-    loadMyPhoto();
+    const init = async () => {
+      await Promise.all([loadProfiles(), loadMyPhoto()]);
+      setLoading(false);
+    };
+    init();
   }, []);
 
   const loadProfiles = async () => {
-
     try {
-
-      console.log("USER ID:", userId);
-
       const response = await API.get(`/profiles/${userId}`);
-
-      console.log("PROFILES:", response.data);
-
       setProfiles(response.data.profiles || []);
-
     } catch (error) {
-
       console.log("API ERROR:", error);
-
-    } finally {
-
-      setLoading(false);
-
     }
-
   };
 
   const loadMyPhoto = async () => {
-
     try {
-
       const res = await API.get(`/user/${userId}`);
-
-      console.log("USER API RESPONSE:", res.data);
-
       setMyPhoto(res.data.photo_url);
-
     } catch (error) {
-
       console.log("PHOTO ERROR:", error);
-
     }
-
   };
 
   const nextProfile = () => {
@@ -70,42 +51,32 @@ export default function HomeScreen({ route, navigation }) {
   };
 
   const like = async (likedUserId) => {
+    const currentProfile = profiles[index]; // 🔥 sécurisation
 
     try {
-
       const response = await API.post("/like", {
         user_id: userId,
         liked_user_id: likedUserId
       });
 
-      console.log("LIKE RESPONSE:", response.data);
-
       if (response.data.is_match) {
-
-        console.log("MATCH DETECTED");
-
         navigation.navigate("Match", {
           match: currentProfile,
           userPhoto: myPhoto
         });
-
       }
 
       nextProfile();
 
     } catch (error) {
-
       console.log("LIKE ERROR:", error);
-
     }
-
   };
 
   const dislike = () => {
     nextProfile();
   };
 
-  // Chargement
   if (loading) {
     return (
       <View style={styles.center}>
@@ -114,19 +85,18 @@ export default function HomeScreen({ route, navigation }) {
     );
   }
 
-  // Plus de profils
   if (index >= profiles.length) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.noMore}>No more profiles 😢</Text>
-      </View>
+      <SafeAreaView style={styles.center}>
+        <Text style={styles.noMore}>Plus de profils 👀</Text>
+      </SafeAreaView>
     );
   }
 
   const currentProfile = profiles[index];
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
 
       {/* Zone cartes */}
       <View style={styles.cardArea}>
@@ -149,7 +119,7 @@ export default function HomeScreen({ route, navigation }) {
 
       </View>
 
-      {/* Boutons */}
+      {/* Boutons flottants */}
       <View style={styles.buttons}>
 
         <TouchableOpacity
@@ -168,7 +138,7 @@ export default function HomeScreen({ route, navigation }) {
 
       </View>
 
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -176,14 +146,15 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FB",
-    paddingHorizontal: 20
+    backgroundColor: "#F8F9FB"
   },
 
   cardArea: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    paddingHorizontal: 10
+    // ❌ supprimé marginTop: -20
   },
 
   center: {
@@ -198,9 +169,11 @@ const styles = StyleSheet.create({
   },
 
   buttons: {
+    position: "absolute", // 🔥 clé magique
+    bottom: 30,
+    width: "100%",
     flexDirection: "row",
-    justifyContent: "space-evenly",
-    marginBottom: 40
+    justifyContent: "space-evenly"
   },
 
   button: {

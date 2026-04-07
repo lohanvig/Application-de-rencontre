@@ -22,9 +22,7 @@ export default function LoginScreen({ navigation }) {
 
       const userId = response.data.user_id;
 
-      navigation.navigate("Home", {
-        userId: userId
-      });
+      navigation.navigate("Main", { userId });
 
     } catch (error) {
       console.log(error);
