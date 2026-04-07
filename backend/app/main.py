@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from app.database.supabase_client import supabase
+from pydantic import BaseModel
 
 from app.service.user_service import create_or_get_user
 from app.service.photo_service import upload_photo
@@ -156,21 +157,22 @@ def get_messages(match_id: str):
 
     return {"messages": messages.data}
 
-from pydantic import BaseModel
+
 
 class MessageCreate(BaseModel):
     match_id: str
     sender_id: str
     content: str
 
-
 @app.post("/messages")
-def send_message(msg: MessageCreate):
+def send_message(message: MessageCreate):
+    try:
+        res = supabase.table("messages").insert({
+            "match_id": message.match_id,
+            "sender_id": message.sender_id,
+            "content": message.content
+        }).execute()
 
-    data = supabase.table("messages").insert({
-        "match_id": msg.match_id,
-        "sender_id": msg.sender_id,
-        "content": msg.content
-    }).execute()
-
-    return {"success": True, "message": data.data}
+        return {"success": True, "message": message.content}
+    except Exception as e:
+        return {"error": str(e)}

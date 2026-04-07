@@ -11,6 +11,7 @@ import HomeScreen from "../screens/HomeScreen";
 import MatchesScreen from "../screens/MatchesScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import MatchScreen from "../screens/MatchScreen";
+import ChatScreen from "../screens/ChatScreen";
 
 import { Ionicons } from "@expo/vector-icons";
 
@@ -72,6 +73,8 @@ export default function AppNavigator() {
             component={MatchScreen}
             options={{ presentation: "modal", headerShown: false }}
           />
+
+          <Stack.Screen name="ChatScreen" component={ChatScreen} />
 
         </Stack.Navigator>
       </NavigationContainer>

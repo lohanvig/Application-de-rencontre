@@ -23,25 +23,31 @@ export default function MatchListScreen({ route, navigation }) {
       const res = await API.get(`/matches/${userId}`);
       setMatches(res.data.matches || []);
     } catch (err) {
-      console.log(err);
+      console.log("MATCH ERROR:", err);
     }
+  };
+
+  const openChat = (item) => {
+    navigation.navigate("ChatScreen", {
+      matchId: item.match_id, // ⚠️ important
+      user: item
+    });
   };
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.matchItem}
-      onPress={() =>
-        navigation.navigate("Chat", {
-          matchId: item.match_id,
-          user: item
-        })
-      }
+      onPress={() => openChat(item)}
     >
 
-      <Image source={{ uri: item.photo_url }} style={styles.avatar} />
+      <Image
+        source={{ uri: item.photo_url }}
+        style={styles.avatar}
+      />
 
       <View style={styles.info}>
         <Text style={styles.name}>{item.username}</Text>
+
         <Text style={styles.lastMessage}>
           {item.last_message || "Démarre la conversation 👀"}
         </Text>
@@ -57,8 +63,13 @@ export default function MatchListScreen({ route, navigation }) {
         data={matches}
         keyExtractor={(item) => item.match_id.toString()}
         renderItem={renderItem}
+        contentContainerStyle={{ flexGrow: 1 }}
         ListEmptyComponent={
-          <Text style={styles.empty}>Aucun match pour le moment 😢</Text>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.empty}>
+              Aucun match pour le moment 😢
+            </Text>
+          </View>
         }
       />
 
@@ -84,11 +95,13 @@ const styles = StyleSheet.create({
   avatar: {
     width: 60,
     height: 60,
-    borderRadius: 30
+    borderRadius: 30,
+    backgroundColor: "#eee"
   },
 
   info: {
-    marginLeft: 15
+    marginLeft: 15,
+    flex: 1
   },
 
   name: {
@@ -101,9 +114,15 @@ const styles = StyleSheet.create({
     marginTop: 3
   },
 
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center"
+  },
+
   empty: {
-    textAlign: "center",
-    marginTop: 50
+    fontSize: 16,
+    color: "#555"
   }
 
 });
