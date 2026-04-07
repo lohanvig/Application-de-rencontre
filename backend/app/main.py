@@ -116,6 +116,7 @@ def matches_endpoint(user_id: str):
 
     from app.database.supabase_client import supabase
 
+    # Récupère tous les matches de l'utilisateur
     matches = supabase.table("matches").select("*").or_(
         f"user1_id.eq.{user_id},user2_id.eq.{user_id}"
     ).execute()
@@ -123,25 +124,38 @@ def matches_endpoint(user_id: str):
     results = []
 
     for m in matches.data:
-
+        # ID de l'autre personne
         other_user_id = m["user2_id"] if m["user1_id"] == user_id else m["user1_id"]
 
-        user = supabase.table("users") \
+        # Infos de l'autre utilisateur
+        user_res = supabase.table("users") \
             .select("id, username, age, bio") \
             .eq("id", other_user_id) \
             .execute()
 
-        photo = supabase.table("photos") \
+        # Photo principale
+        photo_res = supabase.table("photos") \
             .select("photo_url") \
             .eq("user_id", other_user_id) \
             .limit(1) \
             .execute()
 
+        # 🔹 Dernier message pour ce match
+        last_msg_res = supabase.table("messages") \
+            .select("content") \
+            .eq("match_id", m["id"]) \
+            .order("created_at", desc=True) \
+            .limit(1) \
+            .execute()
+
+        last_message = last_msg_res.data[0]["content"] if last_msg_res.data else ""
+
         results.append({
-            "match_id": m["id"],  # 🔥 IMPORTANT
-            "id": user.data[0]["id"],
-            "username": user.data[0]["username"],
-            "photo_url": photo.data[0]["photo_url"] if photo.data else None
+            "match_id": m["id"],       # ID du match
+            "id": user_res.data[0]["id"],
+            "username": user_res.data[0]["username"],
+            "photo_url": photo_res.data[0]["photo_url"] if photo_res.data else None,
+            "last_message": last_message
         })
 
     return {"matches": results}

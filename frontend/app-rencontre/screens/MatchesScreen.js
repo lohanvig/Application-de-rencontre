@@ -10,7 +10,6 @@ import {
 import API from "../api/api";
 
 export default function MatchListScreen({ route, navigation }) {
-  // on récupère l'ID de l'utilisateur connecté depuis la navigation
   const userId = route?.params?.userId;
   const [matches, setMatches] = useState([]);
 
@@ -21,35 +20,38 @@ export default function MatchListScreen({ route, navigation }) {
   const loadMatches = async () => {
     try {
       const res = await API.get(`/matches/${userId}`);
-      setMatches(res.data.matches || []);
+      // On s'assure que chaque match a un last_message
+      const data = (res.data.matches || []).map((m) => ({
+        ...m,
+        last_message: m.last_message || "" // placeholder vide si pas de message
+      }));
+      setMatches(data);
     } catch (err) {
       console.log("MATCH ERROR:", err);
     }
   };
 
-  // fonction pour ouvrir le chat, avec passage de currentUserId
   const openChat = (item) => {
     navigation.navigate("ChatScreen", {
-      matchId: item.match_id,   // ID du match
-      user: item,               // infos de l'autre utilisateur
-      currentUserId: userId     // ID de l'utilisateur connecté
+      matchId: item.match_id,
+      user: item,
+      currentUserId: userId
     });
   };
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.matchItem}
-      onPress={() => openChat(item)}
-    >
-      <Image
-        source={{ uri: item.photo_url }}
-        style={styles.avatar}
-      />
-
+    <TouchableOpacity style={styles.matchItem} onPress={() => openChat(item)}>
+      <Image source={{ uri: item.photo_url }} style={styles.avatar} />
       <View style={styles.info}>
         <Text style={styles.name}>{item.username}</Text>
-        <Text style={styles.lastMessage}>
-          {item.last_message || "Démarre la conversation 👀"}
+        <Text
+          style={styles.lastMessage}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {item.last_message.length > 0
+            ? item.last_message
+            : "Démarre la conversation 👀"}
         </Text>
       </View>
     </TouchableOpacity>
@@ -61,12 +63,10 @@ export default function MatchListScreen({ route, navigation }) {
         data={matches}
         keyExtractor={(item) => item.match_id.toString()}
         renderItem={renderItem}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.empty}>
-              Aucun match pour le moment 😢
-            </Text>
+            <Text style={styles.empty}>Aucun match pour le moment 😢</Text>
           </View>
         }
       />
@@ -75,17 +75,26 @@ export default function MatchListScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff"
+  container: { flex: 1, backgroundColor: "#f8f8f8" },
+
+  listContent: {
+    paddingTop: 60, // on augmente le padding pour que le premier match ne touche pas le haut
+    paddingBottom: 20
   },
 
   matchItem: {
     flexDirection: "row",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderColor: "#eee",
-    alignItems: "center"
+    alignItems: "center",
+    padding: 12,
+    marginHorizontal: 10,
+    marginVertical: 5,
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 1
   },
 
   avatar: {
@@ -96,24 +105,27 @@ const styles = StyleSheet.create({
   },
 
   info: {
+    flex: 1,
     marginLeft: 15,
-    flex: 1
+    justifyContent: "center"
   },
 
   name: {
     fontSize: 18,
-    fontWeight: "bold"
+    fontWeight: "bold",
+    marginBottom: 2
   },
 
   lastMessage: {
-    color: "#777",
-    marginTop: 3
+    fontSize: 14,
+    color: "#777"
   },
 
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    paddingTop: 50
   },
 
   empty: {
