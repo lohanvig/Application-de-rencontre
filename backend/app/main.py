@@ -7,6 +7,7 @@ from app.service.user_service import create_or_get_user
 from app.service.photo_service import upload_photo
 from app.service.interaction_service import get_profiles_to_swipe, add_like
 from app.models.schemas import UserCreate, LikeAction
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 app = FastAPI(title="API V1 - Application de Rencontre")
 
@@ -190,3 +191,17 @@ def send_message(message: MessageCreate):
         return {"success": True, "message": message.content}
     except Exception as e:
         return {"error": str(e)}
+    
+active_connections = {}
+
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await websocket.accept()
+    active_connections[user_id] = websocket
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # on pourrait traiter du texte ici si nécessaire
+            print(f"Reçu via WS de {user_id}: {data}")
+    except WebSocketDisconnect:
+        del active_connections[user_id]

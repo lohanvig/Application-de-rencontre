@@ -11,6 +11,7 @@ import {
   Image
 } from "react-native";
 import API from "../api/api";
+import useWebSocket from "../hooks/useWebSocket";
 
 export default function ChatScreen({ route, navigation }) {
   const { matchId, user, currentUserId } = route.params;
@@ -19,9 +20,33 @@ export default function ChatScreen({ route, navigation }) {
   const [text, setText] = useState("");
   const flatListRef = useRef();
 
+  // 🔹 Fonction pour charger les messages existants
+  const loadMessages = async () => {
+    try {
+      const res = await API.get(`/messages/${matchId}`);
+      setMessages(res.data.messages || []);
+    } catch (err) {
+      console.log("LOAD MESSAGES ERROR:", err);
+    }
+  };
+
+  // 🔹 Callback quand un message arrive via WebSocket
+  const handleNewMessage = (newMessage) => {
+    // On ajoute seulement si le message correspond au match courant
+    if (newMessage.match_id === matchId) {
+      setMessages((prev) => [...prev, newMessage]);
+      // Scroll automatique
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  };
+
+  // 🔹 Hook WebSocket
+  useWebSocket(currentUserId, handleNewMessage);
+
   useEffect(() => {
     loadMessages();
 
+    // Header avec photo et nom de l’autre utilisateur
     navigation.setOptions({
       headerTitle: () => (
         <View style={styles.headerTitle}>
@@ -33,19 +58,10 @@ export default function ChatScreen({ route, navigation }) {
     });
   }, []);
 
-  const loadMessages = async () => {
-    try {
-      const res = await API.get(`/messages/${matchId}`);
-      setMessages(res.data.messages || []);
-    } catch (err) {
-      console.log("LOAD MESSAGES ERROR:", err);
-    }
-  };
-
   const sendMessage = async () => {
     if (!text.trim()) return;
 
-    const newMessage = { content: text, sender_id: currentUserId };
+    const newMessage = { content: text, sender_id: currentUserId, match_id: matchId };
     setMessages((prev) => [...prev, newMessage]);
     setText("");
 
@@ -59,6 +75,7 @@ export default function ChatScreen({ route, navigation }) {
       console.log("SEND MESSAGE ERROR:", err);
     }
 
+    // scroll automatique
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
@@ -74,10 +91,11 @@ export default function ChatScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"} 
-      keyboardVerticalOffset={Platform.OS === "ios" ? 120 : 80} // ajuste selon header + TabBar
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 120 : 80}
     >
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        {/* Messages */}
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -112,6 +130,7 @@ export default function ChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f8f8" },
 
+  // Messages
   message: {
     marginVertical: 4,
     padding: 12,
@@ -126,6 +145,7 @@ const styles = StyleSheet.create({
   otherMessage: { alignSelf: "flex-start", backgroundColor: "#fff" },
   messageText: { fontSize: 16, lineHeight: 22 },
 
+  // Zone d’écriture
   inputWrapper: {
     flexDirection: "row",
     padding: 8,
@@ -136,7 +156,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: -1 },
-    shadowRadius: 2,
+    shadowRadius: 2
   },
   input: {
     flex: 1,
@@ -146,7 +166,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     paddingHorizontal: 15,
     paddingVertical: 10,
-    fontSize: 16,
+    fontSize: 16
   },
   sendButton: {
     marginLeft: 8,
@@ -155,11 +175,12 @@ const styles = StyleSheet.create({
     width: 45,
     height: 45,
     justifyContent: "center",
-    alignItems: "center",
+    alignItems: "center"
   },
   sendText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
 
+  // Header
   headerTitle: { flexDirection: "row", alignItems: "center" },
   headerAvatar: { width: 35, height: 35, borderRadius: 17.5, marginRight: 10 },
-  headerName: { fontSize: 18, fontWeight: "bold" },
+  headerName: { fontSize: 18, fontWeight: "bold" }
 });
