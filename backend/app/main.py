@@ -110,7 +110,6 @@ def like_endpoint(like: LikeAction):
     }
 
 
-# 5️⃣ Récupérer les matches
 @app.get("/matches/{user_id}")
 def matches_endpoint(user_id: str):
 
@@ -120,4 +119,58 @@ def matches_endpoint(user_id: str):
         f"user1_id.eq.{user_id},user2_id.eq.{user_id}"
     ).execute()
 
-    return {"matches": matches.data}
+    results = []
+
+    for m in matches.data:
+
+        other_user_id = m["user2_id"] if m["user1_id"] == user_id else m["user1_id"]
+
+        user = supabase.table("users") \
+            .select("id, username, age, bio") \
+            .eq("id", other_user_id) \
+            .execute()
+
+        photo = supabase.table("photos") \
+            .select("photo_url") \
+            .eq("user_id", other_user_id) \
+            .limit(1) \
+            .execute()
+
+        results.append({
+            "match_id": m["id"],  # 🔥 IMPORTANT
+            "id": user.data[0]["id"],
+            "username": user.data[0]["username"],
+            "photo_url": photo.data[0]["photo_url"] if photo.data else None
+        })
+
+    return {"matches": results}
+
+@app.get("/messages/{match_id}")
+def get_messages(match_id: str):
+
+    messages = supabase.table("messages") \
+        .select("*") \
+        .eq("match_id", match_id) \
+        .order("created_at", desc=False) \
+        .execute()
+
+    return {"messages": messages.data}
+
+from pydantic import BaseModel
+
+class MessageCreate(BaseModel):
+    match_id: str
+    sender_id: str
+    content: str
+
+
+@app.post("/messages")
+def send_message(msg: MessageCreate):
+
+    data = supabase.table("messages").insert({
+        "match_id": msg.match_id,
+        "sender_id": msg.sender_id,
+        "content": msg.content
+    }).execute()
+
+    return {"success": True, "message": data.data}
