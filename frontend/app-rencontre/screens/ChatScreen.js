@@ -8,10 +8,13 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Image
+  Image,
+  AppState
 } from "react-native";
 import API from "../api/api";
 import useWebSocket from "../hooks/useWebSocket";
+import * as Notifications from "expo-notifications";
+import * as Linking from "expo-linking";
 
 export default function ChatScreen({ route, navigation }) {
   const { matchId, user, currentUserId } = route.params;
@@ -19,34 +22,102 @@ export default function ChatScreen({ route, navigation }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const flatListRef = useRef();
+  const wsRef = useWebSocket(currentUserId, handleNewMessage);
+  const appState = useRef(AppState.currentState);
 
-  // 🔹 Fonction pour charger les messages existants
+  // 🔹 LOAD INITIAL MESSAGES
   const loadMessages = async () => {
     try {
       const res = await API.get(`/messages/${matchId}`);
       setMessages(res.data.messages || []);
+      scrollToBottom();
     } catch (err) {
-      console.log("LOAD MESSAGES ERROR:", err);
+      console.log("LOAD ERROR:", err);
     }
   };
 
-  // 🔹 Callback quand un message arrive via WebSocket
-  const handleNewMessage = (newMessage) => {
-    // On ajoute seulement si le message correspond au match courant
+  // 🔹 NEW MESSAGE HANDLER
+  function handleNewMessage(newMessage) {
+    // Message pour ce chat
     if (newMessage.match_id === matchId) {
-      setMessages((prev) => [...prev, newMessage]);
-      // Scroll automatique
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      setMessages((prev) => {
+        const exists = prev.some(
+          (msg) =>
+            msg.content === newMessage.content &&
+            msg.sender_id === newMessage.sender_id
+        );
+        if (exists) return prev;
+        return [...prev, newMessage];
+      });
+      scrollToBottom();
+    } else {
+      // Message pour un autre match => notification
+      if (newMessage.sender_id !== currentUserId) {
+        sendLocalNotification(
+          "💬 Nouveau message",
+          newMessage.content,
+          newMessage.match_id
+        );
+      }
+    }
+  }
+
+  const scrollToBottom = () => {
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  // 🔹 SEND MESSAGE
+  const sendMessage = async () => {
+    if (!text.trim()) return;
+
+    const messageToSend = text;
+    setText("");
+
+    const tempMessage = {
+      content: messageToSend,
+      sender_id: currentUserId,
+      match_id: matchId,
+      local: true
+    };
+    setMessages((prev) => [...prev, tempMessage]);
+    scrollToBottom();
+
+    try {
+      await API.post("/messages", {
+        match_id: matchId,
+        sender_id: currentUserId,
+        content: messageToSend
+      });
+
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          content: messageToSend,
+          sender_id: currentUserId,
+          match_id: matchId
+        }));
+      }
+
+    } catch (err) {
+      console.log("SEND ERROR:", err);
     }
   };
 
-  // 🔹 Hook WebSocket
-  useWebSocket(currentUserId, handleNewMessage);
+  // 🔹 LOCAL NOTIFICATION
+  const sendLocalNotification = async (title, body, match_id) => {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: { matchId: match_id },
+      },
+      trigger: null,
+    });
+  };
 
+  // 🔹 HANDLE APP STATE & NOTIF CLICK
   useEffect(() => {
     loadMessages();
 
-    // Header avec photo et nom de l’autre utilisateur
     navigation.setOptions({
       headerTitle: () => (
         <View style={styles.headerTitle}>
@@ -54,29 +125,31 @@ export default function ChatScreen({ route, navigation }) {
           <Text style={styles.headerName}>{user.username}</Text>
         </View>
       ),
-      headerTitleAlign: "left"
+      headerTitleAlign: "left",
     });
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+
+    const notificationSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const matchIdFromNotif = response.notification.request.content.data.matchId;
+      if (matchIdFromNotif && matchIdFromNotif !== matchId) {
+        // Ouvrir le chat correspondant
+        navigation.navigate("Chat", {
+          matchId: matchIdFromNotif,
+          currentUserId,
+          user: {} // tu peux récupérer l’autre utilisateur si tu veux afficher nom/photo
+        });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      notificationSubscription.remove();
+    };
   }, []);
 
-  const sendMessage = async () => {
-    if (!text.trim()) return;
-
-    const newMessage = { content: text, sender_id: currentUserId, match_id: matchId };
-    setMessages((prev) => [...prev, newMessage]);
-    setText("");
-
-    try {
-      await API.post("/messages", {
-        match_id: matchId,
-        sender_id: currentUserId,
-        content: text
-      });
-    } catch (err) {
-      console.log("SEND MESSAGE ERROR:", err);
-    }
-
-    // scroll automatique
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+  const handleAppStateChange = (nextAppState) => {
+    appState.current = nextAppState;
   };
 
   const renderItem = ({ item }) => {
@@ -94,29 +167,24 @@ export default function ChatScreen({ route, navigation }) {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 120 : 80}
     >
-      <View style={{ flex: 1, justifyContent: "flex-end" }}>
-        {/* Messages */}
+      <View style={{ flex: 1 }}>
         <FlatList
           ref={flatListRef}
           data={messages}
           keyExtractor={(_, i) => i.toString()}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: 10, paddingBottom: 10 }}
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: true })
-          }
-          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 10 }}
+          onContentSizeChange={scrollToBottom}
         />
-
-        {/* Zone d’écriture */}
-        <View style={[styles.inputWrapper, { marginBottom: Platform.OS === "android" ? 20 : 10 }]}>
+        <View style={styles.inputWrapper}>
           <TextInput
             style={styles.input}
             value={text}
             onChangeText={setText}
             placeholder="Écris un message..."
-            multiline
             placeholderTextColor="#999"
+            multiline
+            onSubmitEditing={sendMessage}
           />
           <TouchableOpacity onPress={sendMessage} style={styles.sendButton}>
             <Text style={styles.sendText}>➤</Text>
@@ -129,58 +197,15 @@ export default function ChatScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f8f8" },
-
-  // Messages
-  message: {
-    marginVertical: 4,
-    padding: 12,
-    borderRadius: 20,
-    maxWidth: "70%",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 1
-  },
+  message: { marginVertical: 4, padding: 12, borderRadius: 20, maxWidth: "70%" },
   myMessage: { alignSelf: "flex-end", backgroundColor: "#DCF8C6" },
   otherMessage: { alignSelf: "flex-start", backgroundColor: "#fff" },
-  messageText: { fontSize: 16, lineHeight: 22 },
-
-  // Zone d’écriture
-  inputWrapper: {
-    flexDirection: "row",
-    padding: 8,
-    borderTopWidth: 1,
-    borderColor: "#eee",
-    backgroundColor: "#fff",
-    alignItems: "flex-end",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: -1 },
-    shadowRadius: 2
-  },
-  input: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 120,
-    backgroundColor: "#f1f1f1",
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    fontSize: 16
-  },
-  sendButton: {
-    marginLeft: 8,
-    backgroundColor: "#007AFF",
-    borderRadius: 25,
-    width: 45,
-    height: 45,
-    justifyContent: "center",
-    alignItems: "center"
-  },
+  messageText: { fontSize: 16 },
+  inputWrapper: { flexDirection: "row", padding: 8, borderTopWidth: 1, borderColor: "#eee", backgroundColor: "#fff", alignItems: "flex-end" },
+  input: { flex: 1, minHeight: 40, maxHeight: 120, backgroundColor: "#f1f1f1", borderRadius: 25, paddingHorizontal: 15, paddingVertical: 10, fontSize: 16 },
+  sendButton: { marginLeft: 8, backgroundColor: "#007AFF", borderRadius: 25, width: 45, height: 45, justifyContent: "center", alignItems: "center" },
   sendText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
-
-  // Header
   headerTitle: { flexDirection: "row", alignItems: "center" },
   headerAvatar: { width: 35, height: 35, borderRadius: 17.5, marginRight: 10 },
-  headerName: { fontSize: 18, fontWeight: "bold" }
+  headerName: { fontSize: 18, fontWeight: "bold" },
 });

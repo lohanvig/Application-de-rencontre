@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -7,6 +7,9 @@ import {
   TouchableOpacity
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
 
 import API from "../api/api";
 import SwipeCard from "../components/SwipeCard";
@@ -20,13 +23,79 @@ export default function HomeScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [myPhoto, setMyPhoto] = useState(null);
 
+  const notificationListener = useRef();
+  const responseListener = useRef();
+
   useEffect(() => {
     const init = async () => {
-      await Promise.all([loadProfiles(), loadMyPhoto()]);
+      await Promise.all([
+        loadProfiles(),
+        loadMyPhoto(),
+        setupPushToken()
+      ]);
       setLoading(false);
     };
     init();
   }, []);
+
+  // 🔔 LISTENERS NOTIFICATIONS
+  useEffect(() => {
+
+    // notif reçue
+    notificationListener.current =
+      Notifications.addNotificationReceivedListener(notification => {
+        console.log("Notification reçue:", notification);
+      });
+
+    // clic sur notif
+    responseListener.current =
+      Notifications.addNotificationResponseReceivedListener(response => {
+
+        console.log("Notification cliquée:", response);
+
+        const data = response.notification.request.content.data;
+
+        if (data?.matchId) {
+          navigation.navigate("ChatScreen", {
+            matchId: data.matchId,
+            user: data.user
+          });
+        }
+
+      });
+
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener.current);
+      Notifications.removeNotificationSubscription(responseListener.current);
+    };
+
+  }, []);
+
+  // 📱 PUSH TOKEN
+  const setupPushToken = async () => {
+    try {
+      if (!Device.isDevice) return;
+
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== "granted") return;
+
+      const token = (await Notifications.getExpoPushTokenAsync()).data;
+
+      console.log("PUSH TOKEN:", token);
+
+      if (!token) return;
+
+      await API.post("/user/push-token", {
+        user_id: userId,
+        push_token: token
+      });
+
+      console.log("Push token saved ✅");
+
+    } catch (err) {
+      console.log("Push token error:", err);
+    }
+  };
 
   const loadProfiles = async () => {
     try {
@@ -51,7 +120,7 @@ export default function HomeScreen({ route, navigation }) {
   };
 
   const like = async (likedUserId) => {
-    const currentProfile = profiles[index]; // 🔥 sécurisation
+    const currentProfile = profiles[index];
 
     try {
       const response = await API.post("/like", {
@@ -98,7 +167,6 @@ export default function HomeScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.container}>
 
-      {/* Zone cartes */}
       <View style={styles.cardArea}>
 
         {profiles[index + 1] && (
@@ -119,7 +187,6 @@ export default function HomeScreen({ route, navigation }) {
 
       </View>
 
-      {/* Boutons flottants */}
       <View style={styles.buttons}>
 
         <TouchableOpacity
@@ -154,7 +221,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 10
-    // ❌ supprimé marginTop: -20
   },
 
   center: {
@@ -169,7 +235,7 @@ const styles = StyleSheet.create({
   },
 
   buttons: {
-    position: "absolute", // 🔥 clé magique
+    position: "absolute",
     bottom: 30,
     width: "100%",
     flexDirection: "row",
