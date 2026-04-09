@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from datetime import datetime
 from app.database.supabase_client import supabase
 
 from app.service.user_service import create_or_get_user
@@ -29,6 +30,7 @@ active_connections = {}
 def root():
     return {"message": "Dating API running 🚀"}
 
+
 # 👤 CREATE USER
 @app.post("/user")
 def create_user_endpoint(user: UserCreate):
@@ -41,6 +43,7 @@ def create_user_endpoint(user: UserCreate):
     )
     return {"user_id": u["id"]}
 
+
 # 📸 UPLOAD PHOTO
 @app.post("/user/{user_id}/photo")
 def upload_photo_endpoint(user_id: str, file: UploadFile = File(...)):
@@ -52,6 +55,7 @@ def upload_photo_endpoint(user_id: str, file: UploadFile = File(...)):
 
     url = upload_photo(user_id, path, filename)
     return {"photo_url": url}
+
 
 # 👤 GET USER
 @app.get("/user/{user_id}")
@@ -79,13 +83,15 @@ def get_user(user_id: str):
         "photo_url": photo_url
     }
 
+
 # 🔍 PROFILES
 @app.get("/profiles/{user_id}")
 def profiles_endpoint(user_id: str):
     profiles = get_profiles_to_swipe(user_id)
     return {"profiles": profiles}
 
-# 💘 LIKE + MATCH + NOTIF
+
+# 💘 LIKE + MATCH
 @app.post("/like")
 def like_endpoint(like: LikeAction):
 
@@ -118,6 +124,7 @@ def like_endpoint(like: LikeAction):
         "match_id": match_id
     }
 
+
 # 💬 MATCHES LIST
 @app.get("/matches/{user_id}")
 def matches_endpoint(user_id: str):
@@ -129,6 +136,7 @@ def matches_endpoint(user_id: str):
     results = []
 
     for m in matches.data:
+
         other_user_id = m["user2_id"] if m["user1_id"] == user_id else m["user1_id"]
 
         user_res = supabase.table("users") \
@@ -143,23 +151,33 @@ def matches_endpoint(user_id: str):
             .execute()
 
         last_msg_res = supabase.table("messages") \
-            .select("content") \
+            .select("content, created_at") \
             .eq("match_id", m["id"]) \
             .order("created_at", desc=True) \
             .limit(1) \
             .execute()
 
-        last_message = last_msg_res.data[0]["content"] if last_msg_res.data else ""
+        last_message = ""
+        updated_at = None
+
+        if last_msg_res.data:
+            last_message = last_msg_res.data[0]["content"]
+            updated_at = last_msg_res.data[0]["created_at"]
 
         results.append({
             "match_id": m["id"],
             "id": user_res.data[0]["id"],
             "username": user_res.data[0]["username"],
             "photo_url": photo_res.data[0]["photo_url"] if photo_res.data else None,
-            "last_message": last_message
+            "last_message": last_message,
+            "updated_at": updated_at
         })
 
+    # 🔥 TRI PAR DERNIER MESSAGE
+    results.sort(key=lambda x: x["updated_at"] or "", reverse=True)
+
     return {"matches": results}
+
 
 # 📩 GET MESSAGES
 @app.get("/messages/{match_id}")
@@ -172,21 +190,26 @@ def get_messages(match_id: str):
 
     return {"messages": messages.data}
 
+
 # 📤 SEND MESSAGE + WS + NOTIF
 class MessageCreate(BaseModel):
     match_id: str
     sender_id: str
     content: str
 
+
 @app.post("/messages")
 async def send_message(message: MessageCreate):
 
     try:
+        created_at = datetime.utcnow().isoformat()
+
         # 💾 DB
         supabase.table("messages").insert({
             "match_id": message.match_id,
             "sender_id": message.sender_id,
-            "content": message.content
+            "content": message.content,
+            "created_at": created_at
         }).execute()
 
         # 🔍 MATCH
@@ -195,26 +218,34 @@ async def send_message(message: MessageCreate):
             .eq("id", message.match_id) \
             .execute()
 
+        if not match.data:
+            return {"error": "Match not found"}
+
         m = match.data[0]
 
         other_user_id = (
             m["user2_id"] if m["user1_id"] == message.sender_id else m["user1_id"]
         )
 
-        ws_message = {
+        ws_payload = {
             "match_id": message.match_id,
             "sender_id": message.sender_id,
-            "content": message.content
+            "content": message.content,
+            "created_at": created_at
         }
 
-        # 🔥 SEND LIVE
-        if other_user_id in active_connections:
-            await active_connections[other_user_id].send_json(ws_message)
+        # 🔥 ENVOI WS SÉCURISÉ
+        async def send_ws(user_id):
+            if user_id in active_connections:
+                try:
+                    await active_connections[user_id].send_json(ws_payload)
+                except:
+                    del active_connections[user_id]
 
-        if message.sender_id in active_connections:
-            await active_connections[message.sender_id].send_json(ws_message)
+        await send_ws(other_user_id)
+        await send_ws(message.sender_id)
 
-        # 🔔 NOTIF SI OFFLINE
+        # 🔔 PUSH SI OFFLINE
         if other_user_id not in active_connections:
 
             user = supabase.table("users") \
@@ -237,12 +268,15 @@ async def send_message(message: MessageCreate):
         return {"success": True}
 
     except Exception as e:
+        print("ERROR SEND MESSAGE:", e)
         return {"error": str(e)}
+
 
 # 🔔 SAVE PUSH TOKEN
 class PushToken(BaseModel):
     user_id: str
     push_token: str
+
 
 @app.post("/user/push-token")
 def save_push_token(data: PushToken):
@@ -251,6 +285,7 @@ def save_push_token(data: PushToken):
     }).eq("id", data.user_id).execute()
 
     return {"success": True}
+
 
 # 🔔 SEND NOTIFICATION
 def send_push_notification(token, title, body, match_id=None, sender_id=None):
@@ -267,6 +302,7 @@ def send_push_notification(token, title, body, match_id=None, sender_id=None):
             }
         }
     )
+
 
 # 🔌 WEBSOCKET
 @app.websocket("/ws/{user_id}")

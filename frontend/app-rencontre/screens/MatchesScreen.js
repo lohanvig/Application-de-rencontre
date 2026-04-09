@@ -11,34 +11,83 @@ import API from "../api/api";
 import useWebSocket from "../hooks/useWebSocket";
 
 export default function MatchListScreen({ route, navigation }) {
+
   const userId = route?.params?.userId;
+
   const [matches, setMatches] = useState([]);
-  const [unreadMessages, setUnreadMessages] = useState({}); // { match_id: count }
+  const [unreadMessages, setUnreadMessages] = useState({});
 
   useEffect(() => {
     loadMatches();
   }, []);
 
-  // 🔹 Hook WebSocket pour les notifications in-app
+  // 🔥 WEBSOCKET TEMPS RÉEL (CORRIGÉ)
   useWebSocket(userId, (newMessage) => {
+
     const matchId = newMessage.match_id;
-    setUnreadMessages((prev) => ({
-      ...prev,
-      [matchId]: prev[matchId] ? prev[matchId] + 1 : 1
-    }));
+    const isMe = newMessage.sender_id === userId;
+
+    // 🔔 unread uniquement si message reçu
+    if (!isMe) {
+      setUnreadMessages((prev) => ({
+        ...prev,
+        [matchId]: prev[matchId] ? prev[matchId] + 1 : 1
+      }));
+    }
+
+    // 💬 update + TRI PROPRE
+    setMatches((prev) => {
+
+      let updated = [...prev];
+
+      const index = updated.findIndex(m => m.match_id === matchId);
+
+      if (index !== -1) {
+        // 🔄 update match existant
+        updated[index] = {
+          ...updated[index],
+          last_message: newMessage.content,
+          updated_at: newMessage.created_at || Date.now()
+        };
+      } else {
+        // ⚠️ cas rare: nouveau match pas encore chargé
+        updated.unshift({
+          match_id: matchId,
+          username: "Nouveau match",
+          photo_url: null,
+          last_message: newMessage.content,
+          updated_at: newMessage.created_at || Date.now()
+        });
+      }
+
+      // 🔥 TRI PAR DATE (ULTRA IMPORTANT)
+      updated.sort((a, b) =>
+        new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
+      );
+
+      return updated;
+    });
+
   });
 
   const loadMatches = async () => {
     try {
       const res = await API.get(`/matches/${userId}`);
-      setMatches(res.data.matches || []);
+
+      const sorted = (res.data.matches || []).sort((a, b) =>
+        new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
+      );
+
+      setMatches(sorted);
+
     } catch (err) {
       console.log("MATCH ERROR:", err);
     }
   };
 
   const openChat = (item) => {
-    // reset le badge de ce match
+
+    // 🔕 reset badge
     setUnreadMessages((prev) => ({
       ...prev,
       [item.match_id]: 0
@@ -51,44 +100,57 @@ export default function MatchListScreen({ route, navigation }) {
     });
   };
 
-  const renderItem = ({ item }) => (
-    <TouchableOpacity style={styles.matchItem} onPress={() => openChat(item)}>
-      <Image source={{ uri: item.photo_url }} style={styles.avatar} />
-      <View style={styles.info}>
-        <Text style={styles.name}>{item.username}</Text>
-        <Text style={styles.lastMessage}>
-          {item.last_message && item.last_message.length > 0
-            ? item.last_message
-            : "Démarre la conversation 👀"}
-        </Text>
-      </View>
-      {/* Badge de nouveau message */}
-      {unreadMessages[item.match_id] > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{unreadMessages[item.match_id]}</Text>
+  const renderItem = ({ item }) => {
+
+    const unread = unreadMessages[item.match_id] || 0;
+
+    return (
+      <TouchableOpacity style={styles.matchItem} onPress={() => openChat(item)}>
+
+        <Image source={{ uri: item.photo_url }} style={styles.avatar} />
+
+        <View style={styles.info}>
+          <Text style={styles.name}>{item.username}</Text>
+
+          <Text style={styles.lastMessage}>
+            {item.last_message?.length > 0
+              ? item.last_message
+              : "Démarre la conversation 👀"}
+          </Text>
         </View>
-      )}
-    </TouchableOpacity>
-  );
+
+        {unread > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{unread}</Text>
+          </View>
+        )}
+
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
+
       <FlatList
         data={matches}
         keyExtractor={(item) => item.match_id.toString()}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
+        extraData={unreadMessages} // 🔥 force refresh badge
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.empty}>Aucun match pour le moment 😢</Text>
           </View>
         }
       />
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+
   container: { flex: 1, backgroundColor: "#f8f8f8" },
 
   listContent: {
@@ -104,12 +166,7 @@ const styles = StyleSheet.create({
     marginVertical: 5,
     backgroundColor: "#fff",
     borderRadius: 15,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 1,
-    position: "relative"
+    elevation: 2
   },
 
   avatar: {
@@ -121,14 +178,12 @@ const styles = StyleSheet.create({
 
   info: {
     flex: 1,
-    marginLeft: 15,
-    justifyContent: "center"
+    marginLeft: 15
   },
 
   name: {
     fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 2
+    fontWeight: "bold"
   },
 
   lastMessage: {
@@ -166,4 +221,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#555"
   }
+
 });
