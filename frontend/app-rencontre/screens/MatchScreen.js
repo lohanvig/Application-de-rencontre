@@ -8,6 +8,7 @@ import {
   Animated
 } from "react-native";
 import Screen from "../components/Screen";
+import { playSound } from "../utils/sounds";
 
 export default function MatchScreen({ route, navigation }) {
 
@@ -22,6 +23,7 @@ export default function MatchScreen({ route, navigation }) {
 
 
   useEffect(() => {
+    playSound("match");
 
     Animated.parallel([
       Animated.spring(scale, {

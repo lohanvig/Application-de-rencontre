@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Platform } from "react-native";
 import AppNavigator from "./navigation/AppNavigator";
 import * as Notifications from "expo-notifications";
+import { initAudio } from "./utils/sounds";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -21,5 +22,6 @@ if (Platform.OS === "android") {
 }
 
 export default function App() {
+  useEffect(() => { initAudio(); }, []);
   return <AppNavigator />;
 }

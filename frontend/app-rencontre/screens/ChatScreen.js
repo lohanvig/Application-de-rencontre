@@ -14,6 +14,7 @@ import {
 import API from "../api/api";
 import * as Notifications from "expo-notifications";
 import { useWS } from "../context/WebSocketContext";
+import { playSound } from "../utils/sounds";
 
 export default function ChatScreen({ route, navigation }) {
   const { matchId, user, currentUserId } = route.params;
@@ -63,8 +64,8 @@ export default function ChatScreen({ route, navigation }) {
           return [...prev, msg];
         });
         scrollToBottom();
-        // Accusé lu automatique : je lis ce message
         if (msg.sender_id !== currentUserId) {
+          playSound("receive");
           sendWS({ type: "read", match_id: matchId, recipient_id: msg.sender_id });
         }
       }
@@ -192,6 +193,7 @@ export default function ChatScreen({ route, navigation }) {
     if (!text.trim()) return;
     const messageToSend = text;
     setText("");
+    playSound("send");
 
     setMessages((prev) => [
       ...prev,

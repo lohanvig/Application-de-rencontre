@@ -18,6 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import API from "../api/api";
 import SwipeCard from "../components/SwipeCard";
+import { playSound } from "../utils/sounds";
 
 export default function HomeScreen({ route, navigation }) {
   const userId = route?.params?.userId;
@@ -167,9 +168,11 @@ export default function HomeScreen({ route, navigation }) {
 
   const like = async (likedUserId) => {
     const currentProfile = profiles[index];
+    playSound("like");
     try {
       const response = await API.post("/like", { user_id: userId, liked_user_id: likedUserId });
       if (response.data.is_match) {
+        playSound("match");
         navigation.navigate("Match", { match: currentProfile, userPhoto: myPhoto });
       }
       nextProfile();
@@ -178,7 +181,10 @@ export default function HomeScreen({ route, navigation }) {
     }
   };
 
-  const dislike = () => nextProfile();
+  const dislike = () => {
+    playSound("nope");
+    nextProfile();
+  };
 
   if (loading) {
     return (
