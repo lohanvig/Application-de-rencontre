@@ -5,17 +5,64 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Image,
   Alert,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
 import API from "../api/api";
 import * as Notifications from "expo-notifications";
 import { useWS } from "../context/WebSocketContext";
 import { playSound } from "../utils/sounds";
+
+const EMOJIS = ["❤️", "😂", "😮", "👍", "🔥", "😢"];
+
+function AudioPlayer({ url }) {
+  const soundRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+
+  const toggle = async () => {
+    try {
+      if (playing) {
+        await soundRef.current?.pauseAsync();
+        setPlaying(false);
+      } else {
+        if (!soundRef.current) {
+          const { sound } = await Audio.Sound.createAsync({ uri: url });
+          soundRef.current = sound;
+          sound.setOnPlaybackStatusUpdate((s) => {
+            if (s.didJustFinish) {
+              setPlaying(false);
+              soundRef.current = null;
+            }
+          });
+        }
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+        await soundRef.current.playAsync();
+        setPlaying(true);
+      }
+    } catch (e) {
+      console.log("playback error:", e);
+    }
+  };
+
+  useEffect(() => {
+    return () => { soundRef.current?.unloadAsync(); };
+  }, []);
+
+  return (
+    <TouchableOpacity style={styles.audioBubble} onPress={toggle}>
+      <Ionicons name={playing ? "pause" : "play"} size={20} color="#fff" />
+      <View style={styles.audioBar} />
+      <Text style={styles.audioLabel}>vocal</Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function ChatScreen({ route, navigation }) {
   const { matchId, user, currentUserId } = route.params;
@@ -25,10 +72,14 @@ export default function ChatScreen({ route, navigation }) {
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [isRead, setIsRead] = useState(false);
   const [currentUserInfo, setCurrentUserInfo] = useState(null);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerMessageId, setPickerMessageId] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   const flatListRef = useRef();
   const typingClearRef = useRef(null);
   const lastTypingSentRef = useRef(0);
+  const recordingRef = useRef(null);
 
   const { subscribe, sendWS, markAsRead, clearActiveMatch } = useWS();
 
@@ -36,21 +87,15 @@ export default function ChatScreen({ route, navigation }) {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  // Abonnement WS + accusé de lecture initial
   useEffect(() => {
     markAsRead(matchId);
     sendWS({ type: "read", match_id: matchId, recipient_id: user.id });
 
     const unsubscribe = subscribe((msg) => {
       if (msg.match_id !== matchId) {
-        // Message pour un autre chat : notification locale
         if (msg.type === "new_message" && msg.sender_id !== currentUserId) {
           Notifications.scheduleNotificationAsync({
-            content: {
-              title: "💬 Nouveau message",
-              body: msg.content,
-              data: { matchId: msg.match_id },
-            },
+            content: { title: "💬 Nouveau message", body: msg.content, data: { matchId: msg.match_id } },
             trigger: null,
           });
         }
@@ -60,9 +105,16 @@ export default function ChatScreen({ route, navigation }) {
       if (msg.type === "new_message") {
         setMessages((prev) => {
           const exists = prev.some(
-            (m) => m.content === msg.content && m.sender_id === msg.sender_id
+            (m) => m.content === msg.content && m.sender_id === msg.sender_id && !m.id
           );
-          if (exists) return prev;
+          if (exists) {
+            // assign server id to the optimistic message
+            return prev.map((m) =>
+              m.content === msg.content && m.sender_id === msg.sender_id && !m.id
+                ? { ...m, id: msg.id, audio_url: msg.audio_url, content_type: msg.content_type }
+                : m
+            );
+          }
           return [...prev, msg];
         });
         scrollToBottom();
@@ -78,8 +130,12 @@ export default function ChatScreen({ route, navigation }) {
         typingClearRef.current = setTimeout(() => setIsOtherTyping(false), 2500);
       }
 
-      if (msg.type === "messages_read") {
-        setIsRead(true);
+      if (msg.type === "messages_read") setIsRead(true);
+
+      if (msg.type === "message_reaction" && msg.sender_id === user.id) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msg.message_id ? { ...m, reaction: msg.emoji } : m))
+        );
       }
     });
 
@@ -110,32 +166,23 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   const handleBlock = () => {
-    Alert.alert(
-      "Options",
-      "",
-      [
-        {
-          text: "Bloquer et supprimer",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await API.post("/block", {
-                user_id: currentUserId,
-                blocked_user_id: user.id,
-                match_id: matchId,
-              });
-              navigation.goBack();
-            } catch (err) {
-              console.log("BLOCK ERROR:", err);
-            }
-          },
+    Alert.alert("Options", "", [
+      {
+        text: "Bloquer et supprimer",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await API.post("/block", { user_id: currentUserId, blocked_user_id: user.id, match_id: matchId });
+            navigation.goBack();
+          } catch (err) {
+            console.log("BLOCK ERROR:", err);
+          }
         },
-        { text: "Annuler", style: "cancel" },
-      ]
-    );
+      },
+      { text: "Annuler", style: "cancel" },
+    ]);
   };
 
-  // Header + listener notification
   useEffect(() => {
     loadMessages();
   }, []);
@@ -148,16 +195,12 @@ export default function ChatScreen({ route, navigation }) {
             <Image source={{ uri: user.photo_url }} style={styles.headerAvatar} />
           ) : (
             <View style={[styles.headerAvatar, styles.headerAvatarFallback]}>
-              <Text style={styles.headerAvatarInitial}>
-                {(user.username || "?")[0].toUpperCase()}
-              </Text>
+              <Text style={styles.headerAvatarInitial}>{(user.username || "?")[0].toUpperCase()}</Text>
             </View>
           )}
           <View>
             <Text style={styles.headerName}>{user.username}</Text>
-            {isOtherTyping && (
-              <Text style={styles.headerTyping}>en train d'écrire...</Text>
-            )}
+            {isOtherTyping && <Text style={styles.headerTyping}>en train d'écrire...</Text>}
           </View>
         </View>
       ),
@@ -178,25 +221,18 @@ export default function ChatScreen({ route, navigation }) {
     });
   }, [isOtherTyping, currentUserInfo]);
 
-  // Listener notification
   useEffect(() => {
-    const notifSub = Notifications.addNotificationResponseReceivedListener(
-      async (response) => {
-        const data = response.notification.request.content.data;
-        if (data?.matchId && data.matchId !== matchId && data.senderId) {
-          try {
-            const userRes = await API.get(`/user/${data.senderId}`);
-            navigation.navigate("ChatScreen", {
-              matchId: data.matchId,
-              currentUserId,
-              user: userRes.data,
-            });
-          } catch (err) {
-            console.log("Erreur notif:", err);
-          }
+    const notifSub = Notifications.addNotificationResponseReceivedListener(async (response) => {
+      const data = response.notification.request.content.data;
+      if (data?.matchId && data.matchId !== matchId && data.senderId) {
+        try {
+          const userRes = await API.get(`/user/${data.senderId}`);
+          navigation.navigate("ChatScreen", { matchId: data.matchId, currentUserId, user: userRes.data });
+        } catch (err) {
+          console.log("Erreur notif:", err);
         }
       }
-    );
+    });
     return () => notifSub.remove();
   }, []);
 
@@ -212,7 +248,6 @@ export default function ChatScreen({ route, navigation }) {
 
   const handleChangeText = (value) => {
     setText(value);
-    // Envoie l'événement "typing" max 1 fois par seconde
     const now = Date.now();
     if (now - lastTypingSentRef.current > 1000) {
       lastTypingSentRef.current = now;
@@ -225,31 +260,108 @@ export default function ChatScreen({ route, navigation }) {
     const messageToSend = text;
     setText("");
     playSound("send");
-
     setMessages((prev) => [
       ...prev,
       { content: messageToSend, sender_id: currentUserId, match_id: matchId, local: true },
     ]);
     scrollToBottom();
-
     try {
-      await API.post("/messages", {
-        match_id: matchId,
-        sender_id: currentUserId,
-        content: messageToSend,
-      });
+      await API.post("/messages", { match_id: matchId, sender_id: currentUserId, content: messageToSend });
     } catch (err) {
       console.log("SEND ERROR:", err);
     }
   };
 
+  // ─── Voice recording ────────────────────────────────────────────────────────
+
+  const startRecording = async () => {
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch (e) {
+      console.log("record error:", e);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recordingRef.current) return;
+    setIsRecording(false);
+    try {
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      if (uri) await uploadAudio(uri);
+    } catch (e) {
+      console.log("stop record error:", e);
+      recordingRef.current = null;
+    }
+  };
+
+  const uploadAudio = async (uri) => {
+    const optimistic = { content: "🎤 Message vocal", sender_id: currentUserId, match_id: matchId, content_type: "audio", local: true };
+    setMessages((prev) => [...prev, optimistic]);
+    scrollToBottom();
+    const formData = new FormData();
+    formData.append("file", { uri, name: "voice.m4a", type: "audio/m4a" });
+    formData.append("match_id", matchId);
+    formData.append("sender_id", currentUserId);
+    try {
+      await API.post("/messages/audio", formData);
+    } catch (e) {
+      console.log("audio upload error:", e);
+    }
+  };
+
+  // ─── Reactions ──────────────────────────────────────────────────────────────
+
+  const openPicker = (messageId) => {
+    if (!messageId) return;
+    setPickerMessageId(messageId);
+    setPickerVisible(true);
+  };
+
+  const sendReaction = (emoji) => {
+    setPickerVisible(false);
+    if (!pickerMessageId) return;
+    setMessages((prev) =>
+      prev.map((m) => (m.id === pickerMessageId ? { ...m, reaction: emoji } : m))
+    );
+    sendWS({ type: "message_reaction", recipient_id: user.id, message_id: pickerMessageId, emoji });
+    setPickerMessageId(null);
+  };
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
   const renderItem = ({ item }) => {
     const isMe = item.sender_id === currentUserId;
+    const isAudio = item.content_type === "audio";
+
     return (
       <View style={[styles.messageRow, isMe ? styles.rowRight : styles.rowLeft]}>
-        <View style={[styles.message, isMe ? styles.myMessage : styles.otherMessage]}>
-          <Text style={styles.messageText}>{item.content}</Text>
-        </View>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onLongPress={() => openPicker(item.id)}
+          delayLongPress={400}
+        >
+          <View style={[styles.message, isMe ? styles.myMessage : styles.otherMessage]}>
+            {isAudio && item.audio_url ? (
+              <AudioPlayer url={item.audio_url} />
+            ) : (
+              <Text style={styles.messageText}>{item.content}</Text>
+            )}
+          </View>
+          {item.reaction && (
+            <View style={[styles.reactionBadge, isMe ? styles.reactionRight : styles.reactionLeft]}>
+              <Text style={styles.reactionEmoji}>{item.reaction}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
         {isMe && (
           <Text style={[styles.checkmark, isRead && styles.checkmarkRead]}>
             {isRead ? "✓✓" : "✓"}
@@ -282,6 +394,14 @@ export default function ChatScreen({ route, navigation }) {
         )}
 
         <View style={styles.inputWrapper}>
+          <Pressable
+            onPressIn={startRecording}
+            onPressOut={stopRecording}
+            style={[styles.micBtn, isRecording && styles.micBtnActive]}
+          >
+            <Ionicons name="mic" size={22} color={isRecording ? "#FF4458" : "#888"} />
+          </Pressable>
+
           <TextInput
             style={styles.input}
             value={text}
@@ -291,11 +411,25 @@ export default function ChatScreen({ route, navigation }) {
             multiline
             onSubmitEditing={sendMessage}
           />
+
           <TouchableOpacity onPress={sendMessage} style={styles.sendButton}>
             <Text style={styles.sendText}>➤</Text>
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Emoji picker modal */}
+      <Modal visible={pickerVisible} transparent animationType="fade" onRequestClose={() => setPickerVisible(false)}>
+        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setPickerVisible(false)}>
+          <View style={styles.pickerBox}>
+            {EMOJIS.map((e) => (
+              <TouchableOpacity key={e} onPress={() => sendReaction(e)} style={styles.emojiBtn}>
+                <Text style={styles.emojiText}>{e}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -314,6 +448,23 @@ const styles = StyleSheet.create({
 
   checkmark: { fontSize: 11, color: "#aaa", marginLeft: 4, marginBottom: 2 },
   checkmarkRead: { color: "#34B7F1" },
+
+  reactionBadge: {
+    position: "absolute",
+    bottom: -10,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  reactionRight: { right: 8 },
+  reactionLeft: { left: 8 },
+  reactionEmoji: { fontSize: 15 },
 
   typingBubble: {
     alignSelf: "flex-start",
@@ -335,6 +486,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignItems: "flex-end",
   },
+
+  micBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 6,
+    backgroundColor: "#f1f1f1",
+  },
+  micBtnActive: { backgroundColor: "#FFE5E8" },
+
   input: {
     flex: 1,
     minHeight: 40,
@@ -356,13 +519,46 @@ const styles = StyleSheet.create({
   },
   sendText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
 
-  headerTitle: { flexDirection: "row", alignItems: "center" },
-  headerAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: 10 },
-  headerAvatarFallback: {
-    backgroundColor: "#FFD6D6",
+  audioBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    minWidth: 120,
+  },
+  audioBar: {
+    flex: 1,
+    height: 3,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 2,
+  },
+  audioLabel: { fontSize: 11, color: "rgba(0,0,0,0.4)" },
+
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
     justifyContent: "center",
     alignItems: "center",
   },
+  pickerBox: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    flexDirection: "row",
+    padding: 12,
+    gap: 8,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  emojiBtn: { padding: 6 },
+  emojiText: { fontSize: 28 },
+
+  headerTitle: { flexDirection: "row", alignItems: "center" },
+  headerAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: 10 },
+  headerAvatarFallback: { backgroundColor: "#FFD6D6", justifyContent: "center", alignItems: "center" },
   headerAvatarInitial: { fontSize: 16, fontWeight: "700", color: "#FF4458" },
   headerName: { fontSize: 17, fontWeight: "700" },
   headerTyping: { fontSize: 11, color: "#FF4458", marginTop: 1 },

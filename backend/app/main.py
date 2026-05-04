@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException, Query, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -288,12 +288,13 @@ async def send_message(message: MessageCreate):
         created_at = datetime.utcnow().isoformat()
 
         # 💾 DB
-        supabase.table("messages").insert({
+        inserted = supabase.table("messages").insert({
             "match_id": message.match_id,
             "sender_id": message.sender_id,
             "content": message.content,
             "created_at": created_at
         }).execute()
+        message_id = inserted.data[0]["id"] if inserted.data else None
 
         # 🔍 MATCH
         match = supabase.table("matches") \
@@ -310,6 +311,7 @@ async def send_message(message: MessageCreate):
         # 🔥 PAYLOAD COMPLET (IMPORTANT)
         ws_payload = {
             "type": "new_message",
+            "id": message_id,
             "match_id": message.match_id,
             "sender_id": message.sender_id,
             "content": message.content,
@@ -430,6 +432,25 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                         except Exception:
                             active_connections.pop(recipient_id, None)
 
+                elif event_type == "message_reaction":
+                    msg_id = payload.get("message_id")
+                    emoji = payload.get("emoji")
+                    if msg_id and emoji:
+                        try:
+                            supabase.table("messages").update({"reaction": emoji}).eq("id", msg_id).execute()
+                        except Exception as e:
+                            print("reaction update error:", e)
+                    if recipient_id and recipient_id in active_connections:
+                        try:
+                            await active_connections[recipient_id].send_json({
+                                "type": "message_reaction",
+                                "message_id": msg_id,
+                                "emoji": emoji,
+                                "sender_id": user_id,
+                            })
+                        except Exception:
+                            active_connections.pop(recipient_id, None)
+
                 elif event_type in ("typing", "read") and recipient_id in active_connections:
                     out_type = "typing" if event_type == "typing" else "messages_read"
                     try:
@@ -447,3 +468,96 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         print(f"{user_id} déconnecté")
         active_connections.pop(user_id, None)
         await notify_status(user_id, False)
+
+
+# 📸 GET PHOTOS UTILISATEUR
+@app.get("/user/{user_id}/photos")
+def get_user_photos(user_id: str):
+    photos = supabase.table("photos").select("photo_url, is_main").eq("user_id", user_id).execute()
+    sorted_photos = sorted(photos.data or [], key=lambda p: not p.get("is_main", False))
+    return {"photos": sorted_photos}
+
+
+# ⭐ DÉFINIR PHOTO PRINCIPALE
+class SetMainPhoto(BaseModel):
+    photo_url: str
+
+@app.put("/user/{user_id}/photo/main")
+def set_main_photo(user_id: str, data: SetMainPhoto):
+    supabase.table("photos").update({"is_main": False}).eq("user_id", user_id).execute()
+    supabase.table("photos").update({"is_main": True}).eq("user_id", user_id).eq("photo_url", data.photo_url).execute()
+    return {"success": True}
+
+
+# 🗑️ SUPPRIMER UNE PHOTO
+@app.delete("/user/{user_id}/photo")
+def delete_user_photo(user_id: str, photo_url: str = Query(...)):
+    was_main_res = supabase.table("photos").select("is_main").eq("user_id", user_id).eq("photo_url", photo_url).execute()
+    was_main = was_main_res.data and was_main_res.data[0].get("is_main")
+    supabase.table("photos").delete().eq("user_id", user_id).eq("photo_url", photo_url).execute()
+    if was_main:
+        remaining = supabase.table("photos").select("photo_url").eq("user_id", user_id).limit(1).execute()
+        if remaining.data:
+            supabase.table("photos").update({"is_main": True}).eq("user_id", user_id).eq("photo_url", remaining.data[0]["photo_url"]).execute()
+    return {"success": True}
+
+
+# 🎤 MESSAGE VOCAL
+SUPABASE_URL = "https://nnwgpojusfppkdrtcmil.supabase.co"
+
+@app.post("/messages/audio")
+async def send_audio_message(
+    match_id: str = Form(...),
+    sender_id: str = Form(...),
+    file: UploadFile = File(...),
+):
+    import uuid
+    filename = f"voice_{sender_id}_{uuid.uuid4()}.m4a"
+    path = os.path.join(tempfile.gettempdir(), filename)
+    try:
+        with open(path, "wb") as f:
+            f.write(await file.read())
+        with open(path, "rb") as f:
+            supabase.storage.from_("voice-messages").upload(filename, f)
+        audio_url = f"{SUPABASE_URL}/storage/v1/object/public/voice-messages/{filename}"
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
+
+    created_at = datetime.utcnow().isoformat()
+    inserted = supabase.table("messages").insert({
+        "match_id": match_id,
+        "sender_id": sender_id,
+        "content": "🎤 Message vocal",
+        "content_type": "audio",
+        "audio_url": audio_url,
+        "created_at": created_at
+    }).execute()
+    message_id = inserted.data[0]["id"] if inserted.data else None
+
+    match = supabase.table("matches").select("*").eq("id", match_id).execute()
+    m = match.data[0]
+    other_user_id = m["user2_id"] if m["user1_id"] == sender_id else m["user1_id"]
+
+    ws_payload = {
+        "type": "new_message",
+        "id": message_id,
+        "match_id": match_id,
+        "sender_id": sender_id,
+        "content": "🎤 Message vocal",
+        "content_type": "audio",
+        "audio_url": audio_url,
+        "created_at": created_at,
+    }
+
+    async def _send(uid):
+        if uid in active_connections:
+            try:
+                await active_connections[uid].send_json(ws_payload)
+            except Exception:
+                active_connections.pop(uid, None)
+
+    await _send(other_user_id)
+    await _send(sender_id)
+
+    return {"success": True}

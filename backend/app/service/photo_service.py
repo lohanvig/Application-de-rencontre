@@ -18,11 +18,15 @@ def upload_photo(user_id, file_path, original_filename):
     # URL publique
     url = f"{SUPABASE_URL}/storage/v1/object/public/profile-photos/{filename}"
 
+    # première photo → main, les suivantes non
+    existing = supabase.table("photos").select("id").eq("user_id", user_id).limit(1).execute()
+    is_main = len(existing.data or []) == 0
+
     # insérer dans la table photos
     response = supabase.table("photos").insert({
         "user_id": user_id,
         "photo_url": url,
-        "is_main": True
+        "is_main": is_main
     }).execute()
 
     # vérifier si l'insertion a renvoyé des données
