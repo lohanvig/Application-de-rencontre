@@ -420,7 +420,17 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 event_type = payload.get("type")
                 recipient_id = payload.get("recipient_id")
 
-                if event_type in ("typing", "read") and recipient_id in active_connections:
+                if event_type in ("call_offer", "call_answer", "call_ice_candidate", "call_reject", "call_end"):
+                    if recipient_id and recipient_id in active_connections:
+                        fwd = {k: v for k, v in payload.items() if k != "recipient_id"}
+                        fwd["type"] = event_type
+                        fwd["sender_id"] = user_id
+                        try:
+                            await active_connections[recipient_id].send_json(fwd)
+                        except Exception:
+                            active_connections.pop(recipient_id, None)
+
+                elif event_type in ("typing", "read") and recipient_id in active_connections:
                     out_type = "typing" if event_type == "typing" else "messages_read"
                     try:
                         await active_connections[recipient_id].send_json({

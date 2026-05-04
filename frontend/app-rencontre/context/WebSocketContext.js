@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useCallback, useState } from "react";
+import { navigationRef } from "../navigation/AppNavigator";
 
 const WebSocketContext = createContext(null);
 
@@ -57,6 +58,28 @@ export function WebSocketProvider({ userId, children }) {
               next.delete(data.user_id);
               return next;
             });
+          }
+
+          if (data.type === "call_offer" && data.sender_id !== userId) {
+            navigationRef.current?.navigate("IncomingCall", {
+              callerId: data.sender_id,
+              callerName: data.caller_name,
+              callerPhoto: data.caller_photo,
+              sdpOffer: data.sdp,
+              currentUserId: userId,
+            });
+          }
+
+          if (data.type === "call_end" || data.type === "call_reject") {
+            // Si l'écran IncomingCall ou CallScreen est ouvert, on le ferme
+            const current = navigationRef.current;
+            if (current) {
+              const state = current.getState();
+              const route = state?.routes?.[state.index];
+              if (route?.name === "IncomingCall" || route?.name === "CallScreen") {
+                current.goBack();
+              }
+            }
           }
 
           listenersRef.current.forEach((cb) => cb(data));

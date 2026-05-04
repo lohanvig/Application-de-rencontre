@@ -11,6 +11,7 @@ import {
   Image,
   Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import API from "../api/api";
 import * as Notifications from "expo-notifications";
 import { useWS } from "../context/WebSocketContext";
@@ -23,6 +24,7 @@ export default function ChatScreen({ route, navigation }) {
   const [text, setText] = useState("");
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [isRead, setIsRead] = useState(false);
+  const [currentUserInfo, setCurrentUserInfo] = useState(null);
 
   const flatListRef = useRef();
   const typingClearRef = useRef(null);
@@ -88,6 +90,24 @@ export default function ChatScreen({ route, navigation }) {
     };
   }, []);
 
+  useEffect(() => {
+    API.get(`/user/${currentUserId}`)
+      .then((res) => setCurrentUserInfo(res.data))
+      .catch(() => {});
+  }, []);
+
+  const handleCall = () => {
+    navigation.navigate("CallScreen", {
+      isInitiator: true,
+      recipientId: user.id,
+      recipientName: user.username,
+      recipientPhoto: user.photo_url,
+      currentUserId,
+      currentUserName: currentUserInfo?.username,
+      currentUserPhoto: currentUserInfo?.photo_url,
+    });
+  };
+
   const handleBlock = () => {
     Alert.alert(
       "Options",
@@ -117,7 +137,9 @@ export default function ChatScreen({ route, navigation }) {
   // Header + listener notification
   useEffect(() => {
     loadMessages();
+  }, []);
 
+  useEffect(() => {
     navigation.setOptions({
       headerTitle: () => (
         <View style={styles.headerTitle}>
@@ -140,12 +162,17 @@ export default function ChatScreen({ route, navigation }) {
       ),
       headerTitleAlign: "left",
       headerRight: () => (
-        <TouchableOpacity onPress={handleBlock} style={{ marginRight: 12 }}>
-          <Text style={{ fontSize: 22, color: "#888" }}>⋮</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TouchableOpacity onPress={handleCall} style={{ marginRight: 16 }}>
+            <Ionicons name="call" size={22} color="#FF4458" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleBlock} style={{ marginRight: 12 }}>
+            <Text style={{ fontSize: 22, color: "#888" }}>⋮</Text>
+          </TouchableOpacity>
+        </View>
       ),
     });
-  }, [isOtherTyping]);
+  }, [isOtherTyping, currentUserInfo]);
 
   // Listener notification
   useEffect(() => {

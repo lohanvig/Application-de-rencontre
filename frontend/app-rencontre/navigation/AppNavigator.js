@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, createRef } from "react";
 import { View, ActivityIndicator } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -16,9 +16,14 @@ import ProfileScreen from "../screens/ProfileScreen";
 import MatchScreen from "../screens/MatchScreen";
 import ChatScreen from "../screens/ChatScreen";
 import FiltersScreen from "../screens/FiltersScreen";
+import CallScreen from "../screens/CallScreen";
+import IncomingCallScreen from "../screens/IncomingCallScreen";
 
 import { WebSocketProvider } from "../context/WebSocketContext";
 import { Ionicons } from "@expo/vector-icons";
+
+// Ref globale pour naviguer depuis n'importe où (ex : appel entrant depuis le contexte WS)
+export const navigationRef = createRef();
 
 const RootStack = createNativeStackNavigator();
 const AuthStack = createNativeStackNavigator();
@@ -97,8 +102,6 @@ function MainTabs({ route }) {
   );
 }
 
-// Enveloppe toute la partie authentifiée dans un seul WebSocketProvider
-// pour garantir une connexion WS unique partagée entre tabs et ChatScreen.
 function AuthenticatedNavigator({ route }) {
   const { userId } = route.params;
 
@@ -122,6 +125,16 @@ function AuthenticatedNavigator({ route }) {
           component={FiltersScreen}
           options={{ title: "Filtres", presentation: "modal" }}
         />
+        <AuthStack.Screen
+          name="CallScreen"
+          component={CallScreen}
+          options={{ headerShown: false, presentation: "fullScreenModal" }}
+        />
+        <AuthStack.Screen
+          name="IncomingCall"
+          component={IncomingCallScreen}
+          options={{ headerShown: false, presentation: "fullScreenModal" }}
+        />
       </AuthStack.Navigator>
     </WebSocketProvider>
   );
@@ -130,7 +143,7 @@ function AuthenticatedNavigator({ route }) {
 export default function AppNavigator() {
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <RootStack.Navigator screenOptions={{ headerShown: false }}>
           <RootStack.Screen name="Loading" component={LoadingScreen} />
           <RootStack.Screen name="Login" component={LoginScreen} options={{ headerShown: true }} />
