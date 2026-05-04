@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
+import Constants from "expo-constants";
 
 import API from "../api/api";
 import SwipeCard from "../components/SwipeCard";
@@ -49,17 +50,23 @@ export default function HomeScreen({ route, navigation }) {
 
     // clic sur notif
     responseListener.current =
-      Notifications.addNotificationResponseReceivedListener(response => {
+      Notifications.addNotificationResponseReceivedListener(async response => {
 
         console.log("Notification cliquée:", response);
 
         const data = response.notification.request.content.data;
 
-        if (data?.matchId) {
-          navigation.navigate("ChatScreen", {
-            matchId: data.matchId,
-            user: data.user
-          });
+        if (data?.matchId && data?.senderId) {
+          try {
+            const userRes = await API.get(`/user/${data.senderId}`);
+            navigation.navigate("ChatScreen", {
+              matchId: data.matchId,
+              currentUserId: userId,
+              user: userRes.data
+            });
+          } catch (err) {
+            console.log("Erreur récupération user depuis notif:", err);
+          }
         }
 
       });
@@ -79,7 +86,11 @@ export default function HomeScreen({ route, navigation }) {
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== "granted") return;
 
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ??
+        Constants.easConfig?.projectId;
+
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
 
       console.log("PUSH TOKEN:", token);
 

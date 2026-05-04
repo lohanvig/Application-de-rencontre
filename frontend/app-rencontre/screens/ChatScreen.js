@@ -14,7 +14,6 @@ import {
 import API from "../api/api";
 import useWebSocket from "../hooks/useWebSocket";
 import * as Notifications from "expo-notifications";
-import * as Linking from "expo-linking";
 
 export default function ChatScreen({ route, navigation }) {
   const { matchId, user, currentUserId } = route.params;
@@ -130,15 +129,20 @@ export default function ChatScreen({ route, navigation }) {
 
     const subscription = AppState.addEventListener("change", handleAppStateChange);
 
-    const notificationSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      const matchIdFromNotif = response.notification.request.content.data.matchId;
-      if (matchIdFromNotif && matchIdFromNotif !== matchId) {
-        // Ouvrir le chat correspondant
-        navigation.navigate("Chat", {
-          matchId: matchIdFromNotif,
-          currentUserId,
-          user: {} // tu peux récupérer l’autre utilisateur si tu veux afficher nom/photo
-        });
+    const notificationSubscription = Notifications.addNotificationResponseReceivedListener(async response => {
+      const data = response.notification.request.content.data;
+      const matchIdFromNotif = data.matchId;
+      if (matchIdFromNotif && matchIdFromNotif !== matchId && data.senderId) {
+        try {
+          const userRes = await API.get(`/user/${data.senderId}`);
+          navigation.navigate("ChatScreen", {
+            matchId: matchIdFromNotif,
+            currentUserId,
+            user: userRes.data
+          });
+        } catch (err) {
+          console.log("Erreur récupération user depuis notif:", err);
+        }
       }
     });
 

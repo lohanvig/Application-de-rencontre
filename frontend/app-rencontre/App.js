@@ -1,21 +1,25 @@
 import React from "react";
+import { Platform } from "react-native";
 import AppNavigator from "./navigation/AppNavigator";
 import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+if (Platform.OS === "android") {
+  Notifications.setNotificationChannelAsync("default", {
+    name: "default",
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: "#FF4458",
+  });
+}
 
 export default function App() {
   return <AppNavigator />;
-}
-
-export async function registerForPushNotificationsAsync() {
-  if (!Device.isDevice) return;
-
-  const { status } = await Notifications.requestPermissionsAsync();
-  if (status !== "granted") return;
-
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
-  console.log("PUSH TOKEN:", token);
-
-  return token;
 }
