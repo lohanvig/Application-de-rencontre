@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Alert,
 } from "react-native";
 import API from "../api/api";
 import * as Notifications from "expo-notifications";
@@ -86,6 +87,32 @@ export default function ChatScreen({ route, navigation }) {
     };
   }, []);
 
+  const handleBlock = () => {
+    Alert.alert(
+      "Options",
+      "",
+      [
+        {
+          text: "Bloquer et supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await API.post("/block", {
+                user_id: currentUserId,
+                blocked_user_id: user.id,
+                match_id: matchId,
+              });
+              navigation.goBack();
+            } catch (err) {
+              console.log("BLOCK ERROR:", err);
+            }
+          },
+        },
+        { text: "Annuler", style: "cancel" },
+      ]
+    );
+  };
+
   // Header + listener notification
   useEffect(() => {
     loadMessages();
@@ -111,6 +138,11 @@ export default function ChatScreen({ route, navigation }) {
         </View>
       ),
       headerTitleAlign: "left",
+      headerRight: () => (
+        <TouchableOpacity onPress={handleBlock} style={{ marginRight: 12 }}>
+          <Text style={{ fontSize: 22, color: "#888" }}>⋮</Text>
+        </TouchableOpacity>
+      ),
     });
   }, [isOtherTyping]);
 

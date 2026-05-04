@@ -6,6 +6,7 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 import API from "../api/api";
 import { useWS } from "../context/WebSocketContext";
@@ -81,6 +82,28 @@ export default function MatchListScreen({ route, navigation }) {
     [markAsRead, navigation, userId]
   );
 
+  const unmatch = useCallback((matchId) => {
+    Alert.alert(
+      "Supprimer ce match ?",
+      "La conversation sera définitivement supprimée.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await API.delete(`/match/${matchId}`);
+              setMatches((prev) => prev.filter((m) => m.match_id !== matchId));
+            } catch (err) {
+              console.log("UNMATCH ERROR:", err);
+            }
+          },
+        },
+      ]
+    );
+  }, []);
+
   const renderItem = ({ item }) => {
     const unreadCount = unread[item.match_id] || 0;
     const hasUnread = unreadCount > 0;
@@ -89,6 +112,7 @@ export default function MatchListScreen({ route, navigation }) {
       <TouchableOpacity
         style={[styles.matchItem, hasUnread && styles.matchItemUnread]}
         onPress={() => openChat(item)}
+        onLongPress={() => unmatch(item.match_id)}
         activeOpacity={0.7}
       >
         <View style={styles.avatarWrapper}>

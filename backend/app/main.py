@@ -9,7 +9,7 @@ import tempfile
 
 from app.service.user_service import create_or_get_user, login_user
 from app.service.photo_service import upload_photo
-from app.service.interaction_service import get_profiles_to_swipe, add_like
+from app.service.interaction_service import get_profiles_to_swipe, add_like, get_received_likes
 from app.models.schemas import UserCreate, LikeAction
 
 import requests
@@ -151,6 +151,39 @@ def like_endpoint(like: LikeAction):
         "is_match": is_match,
         "match_id": match_id
     }
+
+# 💘 LIKES REÇUS
+@app.get("/likes/received/{user_id}")
+def received_likes_endpoint(user_id: str):
+    profiles = get_received_likes(user_id)
+    return {"profiles": profiles}
+
+# 💔 UNMATCH
+@app.delete("/match/{match_id}")
+def delete_match_endpoint(match_id: str):
+    supabase.table("messages").delete().eq("match_id", match_id).execute()
+    supabase.table("matches").delete().eq("id", match_id).execute()
+    return {"success": True}
+
+# 🚫 BLOQUER
+class BlockAction(BaseModel):
+    user_id: str
+    blocked_user_id: str
+    match_id: Optional[str] = None
+
+@app.post("/block")
+def block_user_endpoint(data: BlockAction):
+    if data.match_id:
+        supabase.table("messages").delete().eq("match_id", data.match_id).execute()
+        supabase.table("matches").delete().eq("id", data.match_id).execute()
+    try:
+        supabase.table("blocks").insert({
+            "user_id": data.user_id,
+            "blocked_user_id": data.blocked_user_id
+        }).execute()
+    except Exception as e:
+        print("blocks table:", e)
+    return {"success": True}
 
 # 💬 MATCHES
 @app.get("/matches/{user_id}")

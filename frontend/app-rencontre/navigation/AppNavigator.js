@@ -9,6 +9,7 @@ import LoginScreen from "../screens/LoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import HomeScreen from "../screens/HomeScreen";
 import MatchesScreen from "../screens/MatchesScreen";
+import LikesScreen from "../screens/LikesScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import MatchScreen from "../screens/MatchScreen";
 import ChatScreen from "../screens/ChatScreen";
@@ -39,6 +40,18 @@ function MainTabs({ route }) {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="heart" size={size} color={color} />
           ),
+        }}
+      />
+
+      <Tab.Screen
+        name="Likes"
+        component={LikesScreen}
+        initialParams={{ userId }}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="heart-circle" size={size} color={color} />
+          ),
+          tabBarLabel: "Likes",
         }}
       />
 
