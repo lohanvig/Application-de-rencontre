@@ -1,4 +1,5 @@
 import math
+import random
 from app.database.supabase_client import supabase
 from app.service.match_service import check_and_create_match
 
@@ -103,6 +104,7 @@ def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None
             "distance": distance,
         })
 
+    random.shuffle(profiles)
     return profiles
 
 
