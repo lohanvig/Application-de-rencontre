@@ -1,10 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 from app.database.supabase_client import supabase
 
-from app.service.user_service import create_or_get_user
+from app.service.user_service import create_or_get_user, login_user
 from app.service.photo_service import upload_photo
 from app.service.interaction_service import get_profiles_to_swipe, add_like
 from app.models.schemas import UserCreate, LikeAction
@@ -79,6 +79,31 @@ def get_user(user_id: str):
         "bio": u["bio"],
         "photo_url": photo_url
     }
+
+# 🔑 LOGIN
+class LoginData(BaseModel):
+    email: str
+    password: str
+
+@app.post("/login")
+def login_endpoint(data: LoginData):
+    user = login_user(data.email, data.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+    return {"user_id": user["id"]}
+
+# ✏️ UPDATE USER
+class UserUpdate(BaseModel):
+    username: str | None = None
+    bio: str | None = None
+    age: int | None = None
+
+@app.put("/user/{user_id}")
+def update_user(user_id: str, data: UserUpdate):
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    if updates:
+        supabase.table("users").update(updates).eq("id", user_id).execute()
+    return {"success": True}
 
 # 🔍 PROFILES
 @app.get("/profiles/{user_id}")
