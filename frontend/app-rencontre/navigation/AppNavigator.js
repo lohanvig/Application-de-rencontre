@@ -13,43 +13,82 @@ import ProfileScreen from "../screens/ProfileScreen";
 import MatchScreen from "../screens/MatchScreen";
 import ChatScreen from "../screens/ChatScreen";
 
+import { WebSocketProvider } from "../context/WebSocketContext";
 import { Ionicons } from "@expo/vector-icons";
 
-const Stack = createNativeStackNavigator();
+const RootStack = createNativeStackNavigator();
+const AuthStack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function MainTabs({ route }) {
-
-  const { userId } = route.params;
+  const userId = route?.params?.userId;
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#FF4458",
-        tabBarInactiveTintColor: "gray"
+        tabBarInactiveTintColor: "gray",
       }}
     >
-
       <Tab.Screen
         name="Home"
         component={HomeScreen}
         initialParams={{ userId }}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="heart" size={size} color={color} />
+          ),
+        }}
       />
 
       <Tab.Screen
         name="Matches"
         component={MatchesScreen}
         initialParams={{ userId }}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
+        }}
       />
 
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         initialParams={{ userId }}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
       />
-
     </Tab.Navigator>
+  );
+}
+
+// Enveloppe toute la partie authentifiée dans un seul WebSocketProvider
+// pour garantir une connexion WS unique partagée entre tabs et ChatScreen.
+function AuthenticatedNavigator({ route }) {
+  const { userId } = route.params;
+
+  return (
+    <WebSocketProvider userId={userId}>
+      <AuthStack.Navigator>
+        <AuthStack.Screen
+          name="Tabs"
+          component={MainTabs}
+          initialParams={{ userId }}
+          options={{ headerShown: false }}
+        />
+        <AuthStack.Screen
+          name="Match"
+          component={MatchScreen}
+          options={{ presentation: "modal", headerShown: false }}
+        />
+        <AuthStack.Screen name="ChatScreen" component={ChatScreen} />
+      </AuthStack.Navigator>
+    </WebSocketProvider>
   );
 }
 
@@ -57,26 +96,15 @@ export default function AppNavigator() {
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <Stack.Navigator>
-
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-
-          <Stack.Screen
+        <RootStack.Navigator>
+          <RootStack.Screen name="Login" component={LoginScreen} />
+          <RootStack.Screen name="Register" component={RegisterScreen} />
+          <RootStack.Screen
             name="Main"
-            component={MainTabs}
+            component={AuthenticatedNavigator}
             options={{ headerShown: false }}
           />
-
-          <Stack.Screen
-            name="Match"
-            component={MatchScreen}
-            options={{ presentation: "modal", headerShown: false }}
-          />
-
-          <Stack.Screen name="ChatScreen" component={ChatScreen} />
-
-        </Stack.Navigator>
+        </RootStack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
   );
