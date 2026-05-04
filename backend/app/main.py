@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 from datetime import datetime
 from app.database.supabase_client import supabase
 
@@ -10,6 +11,7 @@ from app.service.interaction_service import get_profiles_to_swipe, add_like
 from app.models.schemas import UserCreate, LikeAction
 
 import requests
+import json
 
 app = FastAPI(title="API V1 - Application de Rencontre")
 
@@ -94,13 +96,13 @@ def login_endpoint(data: LoginData):
 
 # ✏️ UPDATE USER
 class UserUpdate(BaseModel):
-    username: str | None = None
-    bio: str | None = None
-    age: int | None = None
+    username: Optional[str] = None
+    bio: Optional[str] = None
+    age: Optional[int] = None
 
 @app.put("/user/{user_id}")
 def update_user(user_id: str, data: UserUpdate):
-    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    updates = {k: v for k, v in data.dict().items() if v is not None}
     if updates:
         supabase.table("users").update(updates).eq("id", user_id).execute()
     return {"success": True}
@@ -329,7 +331,28 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
     try:
         while True:
-            await websocket.receive_text()
+            raw = await websocket.receive_text()
+
+            if raw == "ping":
+                continue
+
+            try:
+                payload = json.loads(raw)
+                event_type = payload.get("type")
+                recipient_id = payload.get("recipient_id")
+
+                if event_type in ("typing", "read") and recipient_id in active_connections:
+                    out_type = "typing" if event_type == "typing" else "messages_read"
+                    try:
+                        await active_connections[recipient_id].send_json({
+                            "type": out_type,
+                            "match_id": payload.get("match_id"),
+                            "sender_id": user_id,
+                        })
+                    except Exception:
+                        active_connections.pop(recipient_id, None)
+            except Exception:
+                pass
 
     except WebSocketDisconnect:
         print(f"{user_id} déconnecté")

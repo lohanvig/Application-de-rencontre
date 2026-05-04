@@ -26,6 +26,7 @@ export default function HomeScreen({ route, navigation }) {
 
   const notificationListener = useRef();
   const responseListener = useRef();
+  const cardRef = useRef();
 
   useEffect(() => {
     const init = async () => {
@@ -189,6 +190,7 @@ export default function HomeScreen({ route, navigation }) {
 
         {currentProfile && (
           <SwipeCard
+            ref={cardRef}
             key={currentProfile.id}
             profile={currentProfile}
             onLike={like}
@@ -202,14 +204,14 @@ export default function HomeScreen({ route, navigation }) {
 
         <TouchableOpacity
           style={[styles.button, styles.dislike]}
-          onPress={dislike}
+          onPress={() => cardRef.current?.swipeLeft()}
         >
           <Text style={styles.buttonText}>❌</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.button, styles.like]}
-          onPress={() => like(currentProfile.id)}
+          onPress={() => cardRef.current?.swipeRight()}
         >
           <Text style={styles.buttonText}>❤️</Text>
         </TouchableOpacity>

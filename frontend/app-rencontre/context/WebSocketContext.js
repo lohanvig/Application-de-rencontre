@@ -87,9 +87,15 @@ export function WebSocketProvider({ userId, children }) {
     activeMatchRef.current = null;
   }, []);
 
+  const sendWS = useCallback((data) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data));
+    }
+  }, []);
+
   return (
     <WebSocketContext.Provider
-      value={{ subscribe, wsRef, unread, markAsRead, clearActiveMatch }}
+      value={{ subscribe, sendWS, unread, markAsRead, clearActiveMatch }}
     >
       {children}
     </WebSocketContext.Provider>

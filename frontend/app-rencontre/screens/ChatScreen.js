@@ -19,52 +19,74 @@ export default function ChatScreen({ route, navigation }) {
 
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
-  const flatListRef = useRef();
+  const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [isRead, setIsRead] = useState(false);
 
-  const { subscribe, markAsRead, clearActiveMatch } = useWS();
+  const flatListRef = useRef();
+  const typingClearRef = useRef(null);
+  const lastTypingSentRef = useRef(0);
+
+  const { subscribe, sendWS, markAsRead, clearActiveMatch } = useWS();
 
   const scrollToBottom = () => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  // Abonnement WS via le context partagé (pas de 2e connexion)
+  // Abonnement WS + accusé de lecture initial
   useEffect(() => {
     markAsRead(matchId);
+    sendWS({ type: "read", match_id: matchId, recipient_id: user.id });
 
-    const unsubscribe = subscribe((newMessage) => {
-      if (newMessage.type !== "new_message") return;
+    const unsubscribe = subscribe((msg) => {
+      if (msg.match_id !== matchId) {
+        // Message pour un autre chat : notification locale
+        if (msg.type === "new_message" && msg.sender_id !== currentUserId) {
+          Notifications.scheduleNotificationAsync({
+            content: {
+              title: "💬 Nouveau message",
+              body: msg.content,
+              data: { matchId: msg.match_id },
+            },
+            trigger: null,
+          });
+        }
+        return;
+      }
 
-      if (newMessage.match_id === matchId) {
+      if (msg.type === "new_message") {
         setMessages((prev) => {
           const exists = prev.some(
-            (msg) =>
-              msg.content === newMessage.content &&
-              msg.sender_id === newMessage.sender_id
+            (m) => m.content === msg.content && m.sender_id === msg.sender_id
           );
           if (exists) return prev;
-          return [...prev, newMessage];
+          return [...prev, msg];
         });
         scrollToBottom();
-      } else if (newMessage.sender_id !== currentUserId) {
-        // Message pour un autre chat : notification locale
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: "💬 Nouveau message",
-            body: newMessage.content,
-            data: { matchId: newMessage.match_id },
-          },
-          trigger: null,
-        });
+        // Accusé lu automatique : je lis ce message
+        if (msg.sender_id !== currentUserId) {
+          sendWS({ type: "read", match_id: matchId, recipient_id: msg.sender_id });
+        }
+      }
+
+      if (msg.type === "typing") {
+        setIsOtherTyping(true);
+        if (typingClearRef.current) clearTimeout(typingClearRef.current);
+        typingClearRef.current = setTimeout(() => setIsOtherTyping(false), 2500);
+      }
+
+      if (msg.type === "messages_read") {
+        setIsRead(true);
       }
     });
 
     return () => {
       clearActiveMatch();
       unsubscribe();
+      if (typingClearRef.current) clearTimeout(typingClearRef.current);
     };
   }, []);
 
-  // Chargement initial + header + listener notif
+  // Header + listener notification
   useEffect(() => {
     loadMessages();
 
@@ -80,12 +102,20 @@ export default function ChatScreen({ route, navigation }) {
               </Text>
             </View>
           )}
-          <Text style={styles.headerName}>{user.username}</Text>
+          <View>
+            <Text style={styles.headerName}>{user.username}</Text>
+            {isOtherTyping && (
+              <Text style={styles.headerTyping}>en train d'écrire...</Text>
+            )}
+          </View>
         </View>
       ),
       headerTitleAlign: "left",
     });
+  }, [isOtherTyping]);
 
+  // Listener notification
+  useEffect(() => {
     const notifSub = Notifications.addNotificationResponseReceivedListener(
       async (response) => {
         const data = response.notification.request.content.data;
@@ -98,12 +128,11 @@ export default function ChatScreen({ route, navigation }) {
               user: userRes.data,
             });
           } catch (err) {
-            console.log("Erreur récupération user depuis notif:", err);
+            console.log("Erreur notif:", err);
           }
         }
       }
     );
-
     return () => notifSub.remove();
   }, []);
 
@@ -117,13 +146,21 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
+  const handleChangeText = (value) => {
+    setText(value);
+    // Envoie l'événement "typing" max 1 fois par seconde
+    const now = Date.now();
+    if (now - lastTypingSentRef.current > 1000) {
+      lastTypingSentRef.current = now;
+      sendWS({ type: "typing", match_id: matchId, recipient_id: user.id });
+    }
+  };
+
   const sendMessage = async () => {
     if (!text.trim()) return;
-
     const messageToSend = text;
     setText("");
 
-    // Affichage immédiat (message temporaire)
     setMessages((prev) => [
       ...prev,
       { content: messageToSend, sender_id: currentUserId, match_id: matchId, local: true },
@@ -131,7 +168,6 @@ export default function ChatScreen({ route, navigation }) {
     scrollToBottom();
 
     try {
-      // Le backend sauvegarde et diffuse via WS aux deux utilisateurs
       await API.post("/messages", {
         match_id: matchId,
         sender_id: currentUserId,
@@ -145,8 +181,15 @@ export default function ChatScreen({ route, navigation }) {
   const renderItem = ({ item }) => {
     const isMe = item.sender_id === currentUserId;
     return (
-      <View style={[styles.message, isMe ? styles.myMessage : styles.otherMessage]}>
-        <Text style={styles.messageText}>{item.content}</Text>
+      <View style={[styles.messageRow, isMe ? styles.rowRight : styles.rowLeft]}>
+        <View style={[styles.message, isMe ? styles.myMessage : styles.otherMessage]}>
+          <Text style={styles.messageText}>{item.content}</Text>
+        </View>
+        {isMe && (
+          <Text style={[styles.checkmark, isRead && styles.checkmarkRead]}>
+            {isRead ? "✓✓" : "✓"}
+          </Text>
+        )}
       </View>
     );
   };
@@ -166,11 +209,18 @@ export default function ChatScreen({ route, navigation }) {
           contentContainerStyle={{ padding: 10 }}
           onContentSizeChange={scrollToBottom}
         />
+
+        {isOtherTyping && (
+          <View style={styles.typingBubble}>
+            <Text style={styles.typingDots}>···</Text>
+          </View>
+        )}
+
         <View style={styles.inputWrapper}>
           <TextInput
             style={styles.input}
             value={text}
-            onChangeText={setText}
+            onChangeText={handleChangeText}
             placeholder="Écris un message..."
             placeholderTextColor="#999"
             multiline
@@ -187,10 +237,31 @@ export default function ChatScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f8f8" },
-  message: { marginVertical: 4, padding: 12, borderRadius: 20, maxWidth: "75%" },
-  myMessage: { alignSelf: "flex-end", backgroundColor: "#DCF8C6" },
-  otherMessage: { alignSelf: "flex-start", backgroundColor: "#fff" },
+
+  messageRow: { flexDirection: "row", alignItems: "flex-end", marginVertical: 3 },
+  rowRight: { justifyContent: "flex-end" },
+  rowLeft: { justifyContent: "flex-start" },
+
+  message: { padding: 12, borderRadius: 20, maxWidth: "72%" },
+  myMessage: { backgroundColor: "#DCF8C6" },
+  otherMessage: { backgroundColor: "#fff" },
   messageText: { fontSize: 16 },
+
+  checkmark: { fontSize: 11, color: "#aaa", marginLeft: 4, marginBottom: 2 },
+  checkmarkRead: { color: "#34B7F1" },
+
+  typingBubble: {
+    alignSelf: "flex-start",
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 10,
+    marginBottom: 4,
+    elevation: 1,
+  },
+  typingDots: { fontSize: 22, color: "#aaa", letterSpacing: 2 },
+
   inputWrapper: {
     flexDirection: "row",
     padding: 8,
@@ -219,6 +290,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sendText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+
   headerTitle: { flexDirection: "row", alignItems: "center" },
   headerAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: 10 },
   headerAvatarFallback: {
@@ -228,4 +300,5 @@ const styles = StyleSheet.create({
   },
   headerAvatarInitial: { fontSize: 16, fontWeight: "700", color: "#FF4458" },
   headerName: { fontSize: 17, fontWeight: "700" },
+  headerTyping: { fontSize: 11, color: "#FF4458", marginTop: 1 },
 });
