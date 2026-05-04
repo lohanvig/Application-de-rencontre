@@ -38,11 +38,11 @@ def get_profiles_to_swipe(user_id):
             supabase.table("photos")
             .select("photo_url, is_main")
             .eq("user_id", u["id"])
-            .order("is_main", desc=True)
             .execute()
         )
 
-        all_photos = [p["photo_url"] for p in (photos.data or [])]
+        photos_data = sorted(photos.data or [], key=lambda p: not p.get("is_main", False))
+        all_photos = [p["photo_url"] for p in photos_data]
         main_photo = all_photos[0] if all_photos else None
 
         profiles.append({

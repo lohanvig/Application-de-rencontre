@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from app.database.supabase_client import supabase
+import os
+import tempfile
 
 from app.service.user_service import create_or_get_user, login_user
 from app.service.photo_service import upload_photo
@@ -47,13 +49,17 @@ def create_user_endpoint(user: UserCreate):
 # 📸 UPLOAD PHOTO
 @app.post("/user/{user_id}/photo")
 def upload_photo_endpoint(user_id: str, file: UploadFile = File(...)):
-    filename = file.filename
-    path = f"temp_{filename}"
+    filename = file.filename or "photo.jpg"
+    path = os.path.join(tempfile.gettempdir(), f"temp_{user_id}_{filename}")
 
-    with open(path, "wb") as f:
-        f.write(file.file.read())
+    try:
+        with open(path, "wb") as f:
+            f.write(file.file.read())
+        url = upload_photo(user_id, path, filename)
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
 
-    url = upload_photo(user_id, path, filename)
     return {"photo_url": url}
 
 # 👤 GET USER

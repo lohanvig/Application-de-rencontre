@@ -69,9 +69,7 @@ export default function RegisterScreen({ navigation }) {
           name: "profile.jpg",
           type: "image/jpeg",
         });
-        await API.post(`/user/${userId}/photo`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        await API.post(`/user/${userId}/photo`, formData);
       }
 
       navigation.navigate("Main", { userId });
