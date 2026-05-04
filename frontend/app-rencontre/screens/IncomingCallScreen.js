@@ -12,7 +12,7 @@ import { useWS } from "../context/WebSocketContext";
 import { playSound } from "../utils/sounds";
 
 export default function IncomingCallScreen({ route, navigation }) {
-  const { callerId, callerName, callerPhoto, sdpOffer, currentUserId } = route.params;
+  const { callerId, callerName, callerPhoto, sdpOffer, isVideo, currentUserId } = route.params;
   const { sendWS } = useWS();
 
   const pulse = useRef(new Animated.Value(1)).current;
@@ -33,6 +33,7 @@ export default function IncomingCallScreen({ route, navigation }) {
   const accept = () => {
     navigation.replace("CallScreen", {
       isInitiator: false,
+      isVideo,
       recipientId: callerId,
       recipientName: callerName,
       recipientPhoto: callerPhoto,
@@ -48,7 +49,7 @@ export default function IncomingCallScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.subtitle}>Appel audio entrant</Text>
+      <Text style={styles.subtitle}>{isVideo ? "Appel vidéo entrant" : "Appel audio entrant"}</Text>
 
       <Animated.View style={[styles.avatarWrapper, { transform: [{ scale: pulse }] }]}>
         {callerPhoto ? (

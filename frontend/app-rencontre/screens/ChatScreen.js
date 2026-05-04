@@ -96,9 +96,10 @@ export default function ChatScreen({ route, navigation }) {
       .catch(() => {});
   }, []);
 
-  const handleCall = () => {
+  const handleCall = (isVideo = false) => {
     navigation.navigate("CallScreen", {
       isInitiator: true,
+      isVideo,
       recipientId: user.id,
       recipientName: user.username,
       recipientPhoto: user.photo_url,
@@ -163,7 +164,10 @@ export default function ChatScreen({ route, navigation }) {
       headerTitleAlign: "left",
       headerRight: () => (
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <TouchableOpacity onPress={handleCall} style={{ marginRight: 16 }}>
+          <TouchableOpacity onPress={() => handleCall(true)} style={{ marginRight: 16 }}>
+            <Ionicons name="videocam" size={24} color="#FF4458" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleCall(false)} style={{ marginRight: 16 }}>
             <Ionicons name="call" size={22} color="#FF4458" />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleBlock} style={{ marginRight: 12 }}>

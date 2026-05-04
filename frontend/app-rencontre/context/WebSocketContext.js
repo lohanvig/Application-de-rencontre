@@ -66,6 +66,7 @@ export function WebSocketProvider({ userId, children }) {
               callerName: data.caller_name,
               callerPhoto: data.caller_photo,
               sdpOffer: data.sdp,
+              isVideo: data.is_video ?? false,
               currentUserId: userId,
             });
           }

@@ -6,18 +6,20 @@ import {
   StyleSheet,
   Image,
   Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useWS } from "../context/WebSocketContext";
 
 // WebRTC — fonctionne avec un dev build (pas Expo Go)
-let RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices;
+let RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices, RTCView;
 try {
   const webrtc = require("react-native-webrtc");
   RTCPeerConnection = webrtc.RTCPeerConnection;
   RTCSessionDescription = webrtc.RTCSessionDescription;
   RTCIceCandidate = webrtc.RTCIceCandidate;
   mediaDevices = webrtc.mediaDevices;
+  RTCView = webrtc.RTCView;
 } catch (_) {}
 
 const ICE_SERVERS = {
@@ -30,6 +32,7 @@ const ICE_SERVERS = {
 export default function CallScreen({ route, navigation }) {
   const {
     isInitiator,
+    isVideo,
     recipientId,
     recipientName,
     recipientPhoto,
@@ -43,7 +46,10 @@ export default function CallScreen({ route, navigation }) {
   const [duration, setDuration] = useState(0);
   const [muted, setMuted] = useState(false);
   const [speaker, setSpeaker] = useState(false);
+  const [cameraOn, setCameraOn] = useState(true);
   const [connected, setConnected] = useState(false);
+  const [localStreamURL, setLocalStreamURL] = useState(null);
+  const [remoteStreamURL, setRemoteStreamURL] = useState(null);
 
   const pc = useRef(null);
   const localStream = useRef(null);
@@ -82,12 +88,12 @@ export default function CallScreen({ route, navigation }) {
 
   const setupCall = async () => {
     if (!webrtcAvailable) {
-      setStatus("Audio non disponible en Expo Go");
+      setStatus("WebRTC non disponible en Expo Go");
       if (isInitiator) {
-        // Signaler quand même l'appel même sans WebRTC
         sendWS({
           type: "call_offer",
           recipient_id: recipientId,
+          is_video: isVideo,
           caller_name: route.params.currentUserName,
           caller_photo: route.params.currentUserPhoto,
           sdp: null,
@@ -97,13 +103,28 @@ export default function CallScreen({ route, navigation }) {
     }
 
     try {
-      const stream = await mediaDevices.getUserMedia({ audio: true, video: false });
+      const stream = await mediaDevices.getUserMedia({
+        audio: true,
+        video: isVideo
+          ? { facingMode: "user", width: 640, height: 480 }
+          : false,
+      });
       localStream.current = stream;
+
+      if (isVideo) {
+        setLocalStreamURL(stream.toURL());
+      }
 
       const peerConnection = new RTCPeerConnection(ICE_SERVERS);
       pc.current = peerConnection;
 
       stream.getTracks().forEach((track) => peerConnection.addTrack(track, stream));
+
+      peerConnection.ontrack = (event) => {
+        if (event.streams && event.streams[0]) {
+          setRemoteStreamURL(event.streams[0].toURL());
+        }
+      };
 
       peerConnection.onicecandidate = ({ candidate }) => {
         if (candidate) {
@@ -128,6 +149,7 @@ export default function CallScreen({ route, navigation }) {
         sendWS({
           type: "call_offer",
           recipient_id: recipientId,
+          is_video: isVideo,
           caller_name: route.params.currentUserName,
           caller_photo: route.params.currentUserPhoto,
           sdp: offer,
@@ -145,7 +167,7 @@ export default function CallScreen({ route, navigation }) {
       }
     } catch (e) {
       console.log("WebRTC error:", e);
-      setStatus("Erreur audio");
+      setStatus("Erreur media");
     }
   };
 
@@ -174,6 +196,13 @@ export default function CallScreen({ route, navigation }) {
     setMuted((m) => !m);
   };
 
+  const toggleCamera = () => {
+    localStream.current?.getVideoTracks().forEach((t) => {
+      t.enabled = !cameraOn;
+    });
+    setCameraOn((c) => !c);
+  };
+
   const toggleSpeaker = () => setSpeaker((s) => !s);
 
   const formatDuration = (s) => {
@@ -182,47 +211,122 @@ export default function CallScreen({ route, navigation }) {
     return `${m}:${sec}`;
   };
 
+  // ─── AUDIO CALL UI ───────────────────────────────────────────────────────────
+  if (!isVideo) {
+    return (
+      <View style={styles.audioContainer}>
+        <View style={styles.avatarWrapper}>
+          {recipientPhoto ? (
+            <Image source={{ uri: recipientPhoto }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Text style={styles.avatarInitial}>
+                {(recipientName || "?")[0].toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.name}>{recipientName}</Text>
+        <Text style={styles.status}>{connected ? formatDuration(duration) : status}</Text>
+
+        <View style={styles.controls}>
+          <TouchableOpacity
+            style={[styles.controlBtn, muted && styles.controlBtnActive]}
+            onPress={toggleMute}
+          >
+            <Ionicons name={muted ? "mic-off" : "mic"} size={26} color={muted ? "#FF4458" : "#fff"} />
+            <Text style={styles.controlLabel}>{muted ? "Muet" : "Micro"}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.endBtn} onPress={() => endCall(true)}>
+            <Ionicons name="call" size={34} color="#fff" style={{ transform: [{ rotate: "135deg" }] }} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.controlBtn, speaker && styles.controlBtnActive]}
+            onPress={toggleSpeaker}
+          >
+            <Ionicons name={speaker ? "volume-high" : "volume-medium"} size={26} color={speaker ? "#4CD964" : "#fff"} />
+            <Text style={styles.controlLabel}>HP</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ─── VIDEO CALL UI ────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
-      {/* Avatar */}
-      <View style={styles.avatarWrapper}>
-        {recipientPhoto ? (
-          <Image source={{ uri: recipientPhoto }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, styles.avatarFallback]}>
-            <Text style={styles.avatarInitial}>
-              {(recipientName || "?")[0].toUpperCase()}
-            </Text>
-          </View>
-        )}
+    <View style={styles.videoContainer}>
+      <StatusBar hidden />
+
+      {/* Remote video — full screen */}
+      {remoteStreamURL && RTCView ? (
+        <RTCView
+          streamURL={remoteStreamURL}
+          style={StyleSheet.absoluteFill}
+          objectFit="cover"
+          mirror={false}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.videoPlaceholder]}>
+          {recipientPhoto ? (
+            <Image source={{ uri: recipientPhoto }} style={styles.avatarLarge} />
+          ) : (
+            <View style={[styles.avatarLarge, styles.avatarFallback]}>
+              <Text style={styles.avatarInitialLarge}>
+                {(recipientName || "?")[0].toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Local video — small corner */}
+      {localStreamURL && RTCView && cameraOn && (
+        <RTCView
+          streamURL={localStreamURL}
+          style={styles.localVideo}
+          objectFit="cover"
+          mirror
+          zOrder={1}
+        />
+      )}
+
+      {/* Top bar */}
+      <View style={styles.videoTopBar}>
+        <Text style={styles.videoName}>{recipientName}</Text>
+        <Text style={styles.videoStatus}>{connected ? formatDuration(duration) : status}</Text>
       </View>
 
-      <Text style={styles.name}>{recipientName}</Text>
-
-      <Text style={styles.status}>
-        {connected ? formatDuration(duration) : status}
-      </Text>
-
-      {/* Boutons */}
-      <View style={styles.controls}>
+      {/* Controls overlay */}
+      <View style={styles.videoControls}>
         <TouchableOpacity
-          style={[styles.controlBtn, muted && styles.controlBtnActive]}
+          style={[styles.videoBtn, muted && styles.videoBtnActive]}
           onPress={toggleMute}
         >
-          <Ionicons name={muted ? "mic-off" : "mic"} size={26} color={muted ? "#FF4458" : "#fff"} />
-          <Text style={styles.controlLabel}>{muted ? "Muet" : "Micro"}</Text>
+          <Ionicons name={muted ? "mic-off" : "mic"} size={24} color="#fff" />
+          <Text style={styles.videoBtnLabel}>{muted ? "Muet" : "Micro"}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.endBtn} onPress={() => endCall(true)}>
-          <Ionicons name="call" size={34} color="#fff" style={{ transform: [{ rotate: "135deg" }] }} />
+        <TouchableOpacity style={styles.endBtnVideo} onPress={() => endCall(true)}>
+          <Ionicons name="call" size={30} color="#fff" style={{ transform: [{ rotate: "135deg" }] }} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.controlBtn, speaker && styles.controlBtnActive]}
+          style={[styles.videoBtn, !cameraOn && styles.videoBtnActive]}
+          onPress={toggleCamera}
+        >
+          <Ionicons name={cameraOn ? "videocam" : "videocam-off"} size={24} color="#fff" />
+          <Text style={styles.videoBtnLabel}>{cameraOn ? "Caméra" : "Caméra off"}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.videoBtn, speaker && styles.videoBtnActive]}
           onPress={toggleSpeaker}
         >
-          <Ionicons name={speaker ? "volume-high" : "volume-medium"} size={26} color={speaker ? "#4CD964" : "#fff"} />
-          <Text style={styles.controlLabel}>HP</Text>
+          <Ionicons name={speaker ? "volume-high" : "volume-medium"} size={24} color="#fff" />
+          <Text style={styles.videoBtnLabel}>HP</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -230,7 +334,8 @@ export default function CallScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  // ─── Audio ───────────────────────────────────────────────────────────────────
+  audioContainer: {
     flex: 1,
     backgroundColor: "#1a1a2e",
     alignItems: "center",
@@ -312,6 +417,121 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
+    backgroundColor: "#FF3B30",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 6,
+    shadowColor: "#FF3B30",
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+
+  // ─── Video ───────────────────────────────────────────────────────────────────
+  videoContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+
+  videoPlaceholder: {
+    backgroundColor: "#1a1a2e",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  avatarLarge: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+
+  avatarInitialLarge: {
+    fontSize: 64,
+    fontWeight: "700",
+    color: "#fff",
+  },
+
+  localVideo: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 60 : 40,
+    right: 16,
+    width: 100,
+    height: 140,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.3)",
+    zIndex: 10,
+    elevation: 10,
+  },
+
+  videoTopBar: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 60 : 40,
+    left: 20,
+    zIndex: 10,
+  },
+
+  videoName: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+
+  videoStatus: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 2,
+    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+
+  videoControls: {
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? 50 : 30,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
+    paddingHorizontal: 20,
+  },
+
+  videoBtn: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  videoBtnActive: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+  },
+
+  videoBtnLabel: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 10,
+    marginTop: 3,
+    position: "absolute",
+    bottom: -18,
+    alignSelf: "center",
+    width: 70,
+    textAlign: "center",
+  },
+
+  endBtnVideo: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: "#FF3B30",
     justifyContent: "center",
     alignItems: "center",
