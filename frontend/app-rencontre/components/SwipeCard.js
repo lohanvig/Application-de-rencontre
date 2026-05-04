@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, forwardRef, useImperativeHandle } from "react";
 import {
   View,
   Text,
@@ -6,96 +6,103 @@ import {
   StyleSheet,
   Dimensions,
   Animated,
-  PanResponder
+  PanResponder,
 } from "react-native";
 
-const SCREEN_WIDTH = Dimensions.get("window").width;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const SWIPE_THRESHOLD = 120;
 
-export default function SwipeCard({ profile, onLike, onDislike, isNext }) {
-
+const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
   const position = useRef(new Animated.ValueXY()).current;
+  const [photoIndex, setPhotoIndex] = useState(0);
+
+  const photos =
+    profile.photos?.length > 0
+      ? profile.photos
+      : profile.photo_url
+      ? [profile.photo_url]
+      : [];
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
     outputRange: ["-10deg", "0deg", "10deg"],
-    extrapolate: "clamp"
+    extrapolate: "clamp",
+  });
+
+  const cardScale = position.x.interpolate({
+    inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
+    outputRange: [0.97, 1, 0.97],
+    extrapolate: "clamp",
   });
 
   const likeOpacity = position.x.interpolate({
     inputRange: [0, SCREEN_WIDTH / 4],
     outputRange: [0, 1],
-    extrapolate: "clamp"
+    extrapolate: "clamp",
   });
 
   const nopeOpacity = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 4, 0],
     outputRange: [1, 0],
-    extrapolate: "clamp"
+    extrapolate: "clamp",
   });
 
-  const panResponder = useRef(
-    PanResponder.create({
-
-      onStartShouldSetPanResponder: () => !isNext,
-
-      onPanResponderMove: (evt, gesture) => {
-
-        position.setValue({
-          x: gesture.dx,
-          y: gesture.dy
-        });
-
-      },
-
-      onPanResponderRelease: (evt, gesture) => {
-
-        if (gesture.dx > 120) {
-          swipeRight();
-        }
-        else if (gesture.dx < -120) {
-          swipeLeft();
-        }
-        else {
-          resetPosition();
-        }
-
-      }
-
-    })
-  ).current;
-
   const swipeRight = () => {
-
     Animated.timing(position, {
       toValue: { x: SCREEN_WIDTH + 100, y: 0 },
       duration: 250,
-      useNativeDriver: false
-    }).start(() => onLike(profile.id));
-
+      useNativeDriver: false,
+    }).start(() => onLike?.(profile.id));
   };
 
   const swipeLeft = () => {
-
     Animated.timing(position, {
       toValue: { x: -SCREEN_WIDTH - 100, y: 0 },
       duration: 250,
-      useNativeDriver: false
-    }).start(() => onDislike(profile.id));
-
+      useNativeDriver: false,
+    }).start(() => onDislike?.(profile.id));
   };
 
   const resetPosition = () => {
-
     Animated.spring(position, {
       toValue: { x: 0, y: 0 },
       friction: 5,
-      useNativeDriver: false
+      useNativeDriver: false,
     }).start();
-
   };
 
-  return (
+  useImperativeHandle(ref, () => ({ swipeRight, swipeLeft }));
 
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !isNext,
+
+      onPanResponderMove: (_, gesture) => {
+        position.setValue({ x: gesture.dx, y: gesture.dy });
+      },
+
+      onPanResponderRelease: (evt, gesture) => {
+        // Tap (mouvement minimal) → navigation entre photos
+        if (Math.abs(gesture.dx) < 8 && Math.abs(gesture.dy) < 8) {
+          const { locationX } = evt.nativeEvent;
+          if (locationX < SCREEN_WIDTH * 0.4) {
+            setPhotoIndex((i) => Math.max(0, i - 1));
+          } else {
+            setPhotoIndex((i) => Math.min(photos.length - 1, i + 1));
+          }
+          return;
+        }
+
+        if (gesture.dx > SWIPE_THRESHOLD) swipeRight();
+        else if (gesture.dx < -SWIPE_THRESHOLD) swipeLeft();
+        else resetPosition();
+      },
+    })
+  ).current;
+
+  const currentPhoto = photos[photoIndex];
+
+  return (
     <Animated.View
       style={[
         styles.card,
@@ -104,101 +111,170 @@ export default function SwipeCard({ profile, onLike, onDislike, isNext }) {
           transform: [
             { translateX: position.x },
             { translateY: position.y },
-            { rotate }
-          ]
-        }
+            { rotate },
+            { scale: cardScale },
+          ],
+        },
       ]}
       {...(!isNext ? panResponder.panHandlers : {})}
     >
-
-      {/* IMAGE */}
-      {profile.photo_url ? (
-        <Image
-          source={{ uri: profile.photo_url }}
-          style={styles.image}
-        />
+      {/* PHOTO */}
+      {currentPhoto ? (
+        <Image source={{ uri: currentPhoto }} style={styles.image} />
       ) : (
         <View style={styles.noPhoto}>
-          <Text style={{ fontSize: 40 }}>📷</Text>
+          <Text style={styles.noPhotoIcon}>📷</Text>
         </View>
       )}
 
-      {/* LIKE */}
+      {/* INDICATEURS PHOTOS */}
+      {photos.length > 1 && (
+        <View style={styles.dotsContainer}>
+          {photos.map((_, i) => (
+            <View
+              key={i}
+              style={[styles.dot, i === photoIndex ? styles.dotActive : styles.dotInactive]}
+            />
+          ))}
+        </View>
+      )}
+
+      {/* BADGE LIKE */}
       <Animated.View style={[styles.likeBadge, { opacity: likeOpacity }]}>
         <Text style={styles.likeText}>LIKE</Text>
       </Animated.View>
 
-      {/* NOPE */}
+      {/* BADGE NOPE */}
       <Animated.View style={[styles.nopeBadge, { opacity: nopeOpacity }]}>
         <Text style={styles.nopeText}>NOPE</Text>
       </Animated.View>
 
-      {/* INFOS */}
-      <View style={styles.info}>
-
-        <Text style={styles.name}>
-          {profile.username}, {profile.age}
-        </Text>
-
-        <Text style={styles.bio}>
-          {profile.bio}
-        </Text>
-
+      {/* INFO OVERLAY */}
+      <View style={styles.infoOverlay}>
+        <View style={styles.nameRow}>
+          <Text style={styles.name}>
+            {profile.username}{profile.age ? `, ${profile.age}` : ""}
+          </Text>
+          {profile.distance != null && (
+            <View style={styles.distanceBadge}>
+              <Text style={styles.distanceText}>📍 {profile.distance} km</Text>
+            </View>
+          )}
+        </View>
+        {!!profile.bio && (
+          <Text style={styles.bio} numberOfLines={2}>
+            {profile.bio}
+          </Text>
+        )}
       </View>
-
     </Animated.View>
-
   );
+});
 
-}
+export default SwipeCard;
 
 const styles = StyleSheet.create({
-
   card: {
-    position: "absolute",
     width: "100%",
-    height: 520,
-    backgroundColor: "white",
+    height: SCREEN_HEIGHT * 0.7,
     borderRadius: 20,
     overflow: "hidden",
-
+    elevation: 6,
+    position: "absolute",
+    alignSelf: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
   },
 
   nextCard: {
     transform: [{ scale: 0.95 }],
-    top: 10
+    top: 20,
+    opacity: 0.85,
   },
 
   image: {
     width: "100%",
-    height: 380,
-    resizeMode: "cover"
+    height: "100%",
+    resizeMode: "cover",
   },
 
   noPhoto: {
     width: "100%",
-    height: 380,
+    height: "100%",
+    backgroundColor: "#f0f0f0",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#EEE"
   },
 
-  info: {
-    padding: 20
+  noPhotoIcon: { fontSize: 60 },
+
+  // Barres de progression photos (style Tinder)
+  dotsContainer: {
+    position: "absolute",
+    top: 10,
+    left: 8,
+    right: 8,
+    flexDirection: "row",
+    gap: 4,
+  },
+
+  dot: {
+    flex: 1,
+    height: 3,
+    borderRadius: 2,
+  },
+
+  dotActive: { backgroundColor: "rgba(255,255,255,0.95)" },
+  dotInactive: { backgroundColor: "rgba(255,255,255,0.4)" },
+
+  // Info en overlay sur la photo
+  infoOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.42)",
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 22,
+  },
+
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 2,
   },
 
   name: {
-    fontSize: 24,
-    fontWeight: "700"
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#fff",
+    textShadowColor: "rgba(0,0,0,0.25)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+
+  distanceBadge: {
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+
+  distanceText: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "600",
   },
 
   bio: {
-    marginTop: 5,
-    color: "#555"
+    fontSize: 14,
+    color: "rgba(255,255,255,0.85)",
+    marginTop: 4,
   },
 
   likeBadge: {
@@ -207,16 +283,14 @@ const styles = StyleSheet.create({
     left: 20,
     borderWidth: 3,
     borderColor: "#4CAF50",
-    padding: 10,
+    backgroundColor: "rgba(76,175,80,0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 10,
-    transform: [{ rotate: "-20deg" }]
+    transform: [{ rotate: "-20deg" }],
   },
 
-  likeText: {
-    fontSize: 32,
-    color: "#4CAF50",
-    fontWeight: "bold"
-  },
+  likeText: { fontSize: 32, color: "#4CAF50", fontWeight: "bold" },
 
   nopeBadge: {
     position: "absolute",
@@ -224,15 +298,12 @@ const styles = StyleSheet.create({
     right: 20,
     borderWidth: 3,
     borderColor: "#F44336",
-    padding: 10,
+    backgroundColor: "rgba(244,67,54,0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 10,
-    transform: [{ rotate: "20deg" }]
+    transform: [{ rotate: "20deg" }],
   },
 
-  nopeText: {
-    fontSize: 32,
-    color: "#F44336",
-    fontWeight: "bold"
-  }
-
+  nopeText: { fontSize: 32, color: "#F44336", fontWeight: "bold" },
 });

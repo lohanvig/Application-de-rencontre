@@ -1,56 +1,106 @@
+import math
 from app.database.supabase_client import supabase
 from app.service.match_service import check_and_create_match
 
 
-def get_profiles_to_swipe(user_id):
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2)
+    return round(R * 2 * math.asin(math.sqrt(a)))
 
-    # récupérer les utilisateurs déjà likés
-    liked = (
-        supabase.table("likes")
-        .select("liked_user_id")
-        .eq("user_id", user_id)
-        .execute()
-    )
 
-    liked_ids = []
-    if liked.data:
-        liked_ids = [row["liked_user_id"] for row in liked.data]
+def get_received_likes(user_id):
+    liked_me = supabase.table("likes").select("user_id").eq("liked_user_id", user_id).execute()
+    liked_me_ids = [row["user_id"] for row in (liked_me.data or [])]
 
-    # récupérer les utilisateurs différents de l'utilisateur actuel
-    query = (
-        supabase.table("users")
-        .select("*")
-        .neq("id", user_id)
-    )
+    if not liked_me_ids:
+        return []
 
-    # exclure les profils déjà likés
-    if liked_ids:
-        query = query.not_.in_("id", liked_ids)
+    i_liked = supabase.table("likes").select("liked_user_id").eq("user_id", user_id).execute()
+    i_liked_ids = {row["liked_user_id"] for row in (i_liked.data or [])}
 
-    users_response = query.execute()
-    users = users_response.data or []
+    pending_ids = [uid for uid in liked_me_ids if uid not in i_liked_ids]
 
     profiles = []
+    for uid in pending_ids:
+        user = supabase.table("users").select("*").eq("id", uid).execute()
+        if not user.data:
+            continue
+        u = user.data[0]
 
-    for u in users:
-
-        # récupérer la photo principale
-        photos = (
-            supabase.table("photos")
-            .select("photo_url")
-            .eq("user_id", u["id"])
-            .eq("is_main", True)
-            .execute()
-        )
-
-        photo_url = photos.data[0]["photo_url"] if photos.data else None
+        photos = supabase.table("photos").select("photo_url, is_main").eq("user_id", uid).execute()
+        photos_data = sorted(photos.data or [], key=lambda p: not p.get("is_main", False))
+        all_photos = [p["photo_url"] for p in photos_data]
 
         profiles.append({
             "id": u["id"],
             "username": u["username"],
             "age": u["age"],
             "bio": u["bio"],
-            "photo_url": photo_url
+            "photo_url": all_photos[0] if all_photos else None,
+            "photos": all_photos,
+        })
+
+    return profiles
+
+
+def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None, lat=None, lon=None):
+
+    liked = supabase.table("likes").select("liked_user_id").eq("user_id", user_id).execute()
+    liked_ids = [row["liked_user_id"] for row in (liked.data or [])]
+
+    query = supabase.table("users").select("*").neq("id", user_id)
+
+    if liked_ids:
+        query = query.not_.in_("id", liked_ids)
+
+    try:
+        blocked_by_me = supabase.table("blocks").select("blocked_user_id").eq("user_id", user_id).execute()
+        blocked_me = supabase.table("blocks").select("user_id").eq("blocked_user_id", user_id).execute()
+        blocked_ids = [r["blocked_user_id"] for r in (blocked_by_me.data or [])]
+        blocked_ids += [r["user_id"] for r in (blocked_me.data or [])]
+        if blocked_ids:
+            query = query.not_.in_("id", blocked_ids)
+    except Exception:
+        pass
+
+    if min_age is not None:
+        query = query.gte("age", min_age)
+    if max_age is not None:
+        query = query.lte("age", max_age)
+
+    users = (query.execute()).data or []
+
+    profiles = []
+
+    for u in users:
+        distance = None
+        if lat is not None and lon is not None and u.get("latitude") and u.get("longitude"):
+            distance = haversine(lat, lon, u["latitude"], u["longitude"])
+            if max_distance is not None and distance > max_distance:
+                continue
+
+        photos = (
+            supabase.table("photos")
+            .select("photo_url, is_main")
+            .eq("user_id", u["id"])
+            .execute()
+        )
+
+        photos_data = sorted(photos.data or [], key=lambda p: not p.get("is_main", False))
+        all_photos = [p["photo_url"] for p in photos_data]
+
+        profiles.append({
+            "id": u["id"],
+            "username": u["username"],
+            "age": u["age"],
+            "bio": u["bio"],
+            "photo_url": all_photos[0] if all_photos else None,
+            "photos": all_photos,
+            "distance": distance,
         })
 
     return profiles

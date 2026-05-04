@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Animated
 } from "react-native";
+import Screen from "../components/Screen";
 
 export default function MatchScreen({ route, navigation }) {
 
@@ -39,7 +40,7 @@ export default function MatchScreen({ route, navigation }) {
 
   return (
 
-    <View style={styles.container}>
+    <Screen style={styles.container}>
 
       <Animated.Text
         style={[
@@ -98,7 +99,7 @@ export default function MatchScreen({ route, navigation }) {
         <Text style={styles.keep}>Keep Swiping</Text>
       </TouchableOpacity>
 
-    </View>
+    </Screen>
 
   );
 
