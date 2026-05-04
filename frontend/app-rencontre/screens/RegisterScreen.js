@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
 import { colors } from "../styles/theme.js";
 import * as ImagePicker from "expo-image-picker";
@@ -61,6 +62,7 @@ export default function RegisterScreen({ navigation }) {
         bio: bio.trim() || "Salut ! 👋",
       });
       const userId = response.data.user_id;
+      await AsyncStorage.setItem("userId", userId);
 
       if (image) {
         const formData = new FormData();

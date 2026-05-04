@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
 import { colors } from "../styles/theme.js";
 
@@ -43,7 +44,8 @@ export default function LoginScreen({ navigation }) {
         password,
       });
       const userId = response.data.user_id;
-      navigation.navigate("Main", { userId });
+      await AsyncStorage.setItem("userId", userId);
+      navigation.replace("Main", { userId });
     } catch (error) {
       Alert.alert("Connexion échouée", "Email ou mot de passe incorrect.");
     } finally {

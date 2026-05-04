@@ -12,10 +12,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
 import { colors } from "../styles/theme";
 
-export default function ProfileScreen({ route }) {
+export default function ProfileScreen({ route, navigation }) {
   const { userId } = route.params;
 
   const [profile, setProfile] = useState(null);
@@ -94,9 +95,7 @@ export default function ProfileScreen({ route }) {
           name: "profile.jpg",
           type: "image/jpeg",
         });
-        await API.post(`/user/${userId}/photo`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        await API.post(`/user/${userId}/photo`, formData);
         setPhoto(newPhoto);
         setNewPhoto(null);
       }
@@ -115,6 +114,23 @@ export default function ProfileScreen({ route }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const logout = () => {
+    Alert.alert("Se déconnecter ?", "", [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Déconnexion",
+        style: "destructive",
+        onPress: async () => {
+          await AsyncStorage.removeItem("userId");
+          navigation.getParent()?.getParent()?.reset({
+            index: 0,
+            routes: [{ name: "Login" }],
+          });
+        },
+      },
+    ]);
   };
 
   const cancel = () => {
@@ -223,6 +239,10 @@ export default function ProfileScreen({ route }) {
               onPress={() => setEditing(true)}
             >
               <Text style={styles.editBtnText}>Modifier le profil</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+              <Text style={styles.logoutText}>Se déconnecter</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -376,5 +396,20 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 15,
+  },
+
+  logoutBtn: {
+    marginTop: 24,
+    paddingVertical: 13,
+    paddingHorizontal: 40,
+    borderRadius: 25,
+    borderWidth: 1.5,
+    borderColor: "#FF4458",
+  },
+  logoutText: {
+    color: "#FF4458",
+    fontWeight: "600",
+    fontSize: 15,
+    textAlign: "center",
   },
 });

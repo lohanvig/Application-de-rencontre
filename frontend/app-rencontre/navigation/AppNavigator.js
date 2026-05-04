@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
+import { View, ActivityIndicator } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -20,6 +22,20 @@ import { Ionicons } from "@expo/vector-icons";
 const RootStack = createNativeStackNavigator();
 const AuthStack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+function LoadingScreen({ navigation }) {
+  useEffect(() => {
+    AsyncStorage.getItem("userId").then((id) => {
+      navigation.replace(id ? "Main" : "Login", id ? { userId: id } : undefined);
+    });
+  }, []);
+
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FF4458" }}>
+      <ActivityIndicator color="#fff" size="large" />
+    </View>
+  );
+}
 
 function MainTabs({ route }) {
   const userId = route?.params?.userId;
@@ -109,9 +125,10 @@ export default function AppNavigator() {
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <RootStack.Navigator>
-          <RootStack.Screen name="Login" component={LoginScreen} />
-          <RootStack.Screen name="Register" component={RegisterScreen} />
+        <RootStack.Navigator screenOptions={{ headerShown: false }}>
+          <RootStack.Screen name="Loading" component={LoadingScreen} />
+          <RootStack.Screen name="Login" component={LoginScreen} options={{ headerShown: true }} />
+          <RootStack.Screen name="Register" component={RegisterScreen} options={{ headerShown: true }} />
           <RootStack.Screen
             name="Main"
             component={AuthenticatedNavigator}
