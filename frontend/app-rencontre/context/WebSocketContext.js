@@ -13,6 +13,7 @@ export function WebSocketProvider({ userId, children }) {
   const activeMatchRef = useRef(null);
 
   const [unread, setUnread] = useState({});
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
 
   useEffect(() => {
     if (!userId) return;
@@ -45,6 +46,17 @@ export function WebSocketProvider({ userId, children }) {
               ...prev,
               [data.match_id]: (prev[data.match_id] || 0) + 1,
             }));
+          }
+
+          if (data.type === "user_online") {
+            setOnlineUsers((prev) => new Set([...prev, data.user_id]));
+          }
+          if (data.type === "user_offline") {
+            setOnlineUsers((prev) => {
+              const next = new Set(prev);
+              next.delete(data.user_id);
+              return next;
+            });
           }
 
           listenersRef.current.forEach((cb) => cb(data));
@@ -95,7 +107,7 @@ export function WebSocketProvider({ userId, children }) {
 
   return (
     <WebSocketContext.Provider
-      value={{ subscribe, sendWS, unread, markAsRead, clearActiveMatch }}
+      value={{ subscribe, sendWS, unread, markAsRead, clearActiveMatch, onlineUsers }}
     >
       {children}
     </WebSocketContext.Provider>

@@ -151,9 +151,16 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
 
       {/* INFO OVERLAY */}
       <View style={styles.infoOverlay}>
-        <Text style={styles.name}>
-          {profile.username}{profile.age ? `, ${profile.age}` : ""}
-        </Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.name}>
+            {profile.username}{profile.age ? `, ${profile.age}` : ""}
+          </Text>
+          {profile.distance != null && (
+            <View style={styles.distanceBadge}>
+              <Text style={styles.distanceText}>📍 {profile.distance} km</Text>
+            </View>
+          )}
+        </View>
         {!!profile.bio && (
           <Text style={styles.bio} numberOfLines={2}>
             {profile.bio}
@@ -234,6 +241,14 @@ const styles = StyleSheet.create({
     paddingBottom: 22,
   },
 
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 2,
+  },
+
   name: {
     fontSize: 26,
     fontWeight: "800",
@@ -241,6 +256,19 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0,0,0,0.25)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+
+  distanceBadge: {
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+
+  distanceText: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "600",
   },
 
   bio: {

@@ -11,12 +11,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import API from "../api/api";
+import { useWS } from "../context/WebSocketContext";
 
 export default function LikesScreen({ route, navigation }) {
   const userId = route?.params?.userId;
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [myPhoto, setMyPhoto] = useState(null);
+  const { onlineUsers } = useWS();
 
   useFocusEffect(
     useCallback(() => {
@@ -65,15 +67,20 @@ export default function LikesScreen({ route, navigation }) {
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
-      {item.photo_url ? (
-        <Image source={{ uri: item.photo_url }} style={styles.avatar} />
-      ) : (
-        <View style={[styles.avatar, styles.avatarFallback]}>
-          <Text style={styles.avatarInitial}>
-            {(item.username || "?")[0].toUpperCase()}
-          </Text>
-        </View>
-      )}
+      <View style={styles.avatarWrapper}>
+        {item.photo_url ? (
+          <Image source={{ uri: item.photo_url }} style={styles.avatar} />
+        ) : (
+          <View style={[styles.avatar, styles.avatarFallback]}>
+            <Text style={styles.avatarInitial}>
+              {(item.username || "?")[0].toUpperCase()}
+            </Text>
+          </View>
+        )}
+        {(onlineUsers.has(item.id) || item.is_online) && (
+          <View style={styles.onlineDot} />
+        )}
+      </View>
 
       <View style={styles.info}>
         <Text style={styles.name}>
@@ -154,11 +161,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
   },
 
+  avatarWrapper: { position: "relative" },
+
   avatar: {
     width: 58,
     height: 58,
     borderRadius: 29,
     backgroundColor: "#eee",
+  },
+
+  onlineDot: {
+    position: "absolute",
+    bottom: 1,
+    right: 1,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#4CD964",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
 
   avatarFallback: {

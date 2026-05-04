@@ -15,6 +15,7 @@ import LikesScreen from "../screens/LikesScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import MatchScreen from "../screens/MatchScreen";
 import ChatScreen from "../screens/ChatScreen";
+import FiltersScreen from "../screens/FiltersScreen";
 
 import { WebSocketProvider } from "../context/WebSocketContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -116,6 +117,11 @@ function AuthenticatedNavigator({ route }) {
           options={{ presentation: "modal", headerShown: false }}
         />
         <AuthStack.Screen name="ChatScreen" component={ChatScreen} />
+        <AuthStack.Screen
+          name="Filters"
+          component={FiltersScreen}
+          options={{ title: "Filtres", presentation: "modal" }}
+        />
       </AuthStack.Navigator>
     </WebSocketProvider>
   );

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -113,10 +113,30 @@ def update_user(user_id: str, data: UserUpdate):
         supabase.table("users").update(updates).eq("id", user_id).execute()
     return {"success": True}
 
+# 📍 LOCALISATION
+class LocationUpdate(BaseModel):
+    latitude: float
+    longitude: float
+
+@app.put("/user/{user_id}/location")
+def update_location(user_id: str, data: LocationUpdate):
+    supabase.table("users").update({
+        "latitude": data.latitude,
+        "longitude": data.longitude
+    }).eq("id", user_id).execute()
+    return {"success": True}
+
 # 🔍 PROFILES
 @app.get("/profiles/{user_id}")
-def profiles_endpoint(user_id: str):
-    profiles = get_profiles_to_swipe(user_id)
+def profiles_endpoint(
+    user_id: str,
+    min_age: Optional[int] = Query(None),
+    max_age: Optional[int] = Query(None),
+    max_distance: Optional[int] = Query(None),
+    lat: Optional[float] = Query(None),
+    lon: Optional[float] = Query(None),
+):
+    profiles = get_profiles_to_swipe(user_id, min_age, max_age, max_distance, lat, lon)
     return {"profiles": profiles}
 
 # 💘 LIKE
@@ -156,6 +176,8 @@ def like_endpoint(like: LikeAction):
 @app.get("/likes/received/{user_id}")
 def received_likes_endpoint(user_id: str):
     profiles = get_received_likes(user_id)
+    for p in profiles:
+        p["is_online"] = p["id"] in active_connections
     return {"profiles": profiles}
 
 # 💔 UNMATCH
@@ -230,7 +252,8 @@ def matches_endpoint(user_id: str):
             "username": user_res.data[0]["username"],
             "photo_url": photo_res.data[0]["photo_url"] if photo_res.data else None,
             "last_message": content,
-            "updated_at": updated_at
+            "updated_at": updated_at,
+            "is_online": other_user_id in active_connections,
         })
 
     # 🔥 TRI PROPRE
@@ -359,12 +382,29 @@ def send_push_notification(token, title, body, match_id=None, sender_id=None):
         }
     )
 
+async def notify_status(user_id: str, is_online: bool):
+    try:
+        matches = supabase.table("matches").select("user1_id, user2_id").or_(
+            f"user1_id.eq.{user_id},user2_id.eq.{user_id}"
+        ).execute()
+        event_type = "user_online" if is_online else "user_offline"
+        for m in (matches.data or []):
+            other_id = m["user2_id"] if m["user1_id"] == user_id else m["user1_id"]
+            if other_id in active_connections:
+                try:
+                    await active_connections[other_id].send_json({"type": event_type, "user_id": user_id})
+                except Exception:
+                    active_connections.pop(other_id, None)
+    except Exception as e:
+        print("notify_status error:", e)
+
 # 🔌 WEBSOCKET
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
 
     await websocket.accept()
     active_connections[user_id] = websocket
+    await notify_status(user_id, True)
 
     print(f"{user_id} connecté")
 
@@ -396,3 +436,4 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     except WebSocketDisconnect:
         print(f"{user_id} déconnecté")
         active_connections.pop(user_id, None)
+        await notify_status(user_id, False)

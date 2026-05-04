@@ -1,5 +1,15 @@
+import math
 from app.database.supabase_client import supabase
 from app.service.match_service import check_and_create_match
+
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2)
+    return round(R * 2 * math.asin(math.sqrt(a)))
 
 
 def get_received_likes(user_id):
@@ -37,7 +47,7 @@ def get_received_likes(user_id):
     return profiles
 
 
-def get_profiles_to_swipe(user_id):
+def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None, lat=None, lon=None):
 
     liked = supabase.table("likes").select("liked_user_id").eq("user_id", user_id).execute()
     liked_ids = [row["liked_user_id"] for row in (liked.data or [])]
@@ -47,7 +57,6 @@ def get_profiles_to_swipe(user_id):
     if liked_ids:
         query = query.not_.in_("id", liked_ids)
 
-    # exclure les utilisateurs bloqués (dans les deux sens)
     try:
         blocked_by_me = supabase.table("blocks").select("blocked_user_id").eq("user_id", user_id).execute()
         blocked_me = supabase.table("blocks").select("user_id").eq("blocked_user_id", user_id).execute()
@@ -58,12 +67,21 @@ def get_profiles_to_swipe(user_id):
     except Exception:
         pass
 
-    users_response = query.execute()
-    users = users_response.data or []
+    if min_age is not None:
+        query = query.gte("age", min_age)
+    if max_age is not None:
+        query = query.lte("age", max_age)
+
+    users = (query.execute()).data or []
 
     profiles = []
 
     for u in users:
+        distance = None
+        if lat is not None and lon is not None and u.get("latitude") and u.get("longitude"):
+            distance = haversine(lat, lon, u["latitude"], u["longitude"])
+            if max_distance is not None and distance > max_distance:
+                continue
 
         photos = (
             supabase.table("photos")
@@ -74,15 +92,15 @@ def get_profiles_to_swipe(user_id):
 
         photos_data = sorted(photos.data or [], key=lambda p: not p.get("is_main", False))
         all_photos = [p["photo_url"] for p in photos_data]
-        main_photo = all_photos[0] if all_photos else None
 
         profiles.append({
             "id": u["id"],
             "username": u["username"],
             "age": u["age"],
             "bio": u["bio"],
-            "photo_url": main_photo,
+            "photo_url": all_photos[0] if all_photos else None,
             "photos": all_photos,
+            "distance": distance,
         })
 
     return profiles

@@ -15,7 +15,7 @@ export default function MatchListScreen({ route, navigation }) {
   const userId = route?.params?.userId;
 
   const [matches, setMatches] = useState([]);
-  const { subscribe, unread, markAsRead } = useWS();
+  const { subscribe, unread, markAsRead, onlineUsers } = useWS();
 
   useEffect(() => {
     loadMatches();
@@ -125,7 +125,9 @@ export default function MatchListScreen({ route, navigation }) {
               </Text>
             </View>
           )}
-          {hasUnread && <View style={styles.onlineDot} />}
+          {(onlineUsers.has(item.id) || item.is_online) && (
+            <View style={styles.onlineDot} />
+          )}
         </View>
 
         <View style={styles.info}>
@@ -232,7 +234,7 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: "#FF3B30",
+    backgroundColor: "#4CD964",
     borderWidth: 2,
     borderColor: "#fff",
   },
