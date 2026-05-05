@@ -1,4 +1,4 @@
-import React, { useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { useRef, useState, forwardRef, useImperativeHandle } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Animated,
   PanResponder,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
@@ -25,13 +26,7 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-    outputRange: ["-10deg", "0deg", "10deg"],
-    extrapolate: "clamp",
-  });
-
-  const cardScale = position.x.interpolate({
-    inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-    outputRange: [0.97, 1, 0.97],
+    outputRange: ["-8deg", "0deg", "8deg"],
     extrapolate: "clamp",
   });
 
@@ -82,7 +77,6 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
       },
 
       onPanResponderRelease: (evt, gesture) => {
-        // Tap (mouvement minimal) → navigation entre photos
         if (Math.abs(gesture.dx) < 8 && Math.abs(gesture.dy) < 8) {
           const { locationX } = evt.nativeEvent;
           if (locationX < SCREEN_WIDTH * 0.4) {
@@ -112,22 +106,21 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
             { translateX: position.x },
             { translateY: position.y },
             { rotate },
-            { scale: cardScale },
           ],
         },
       ]}
       {...(!isNext ? panResponder.panHandlers : {})}
     >
-      {/* PHOTO */}
       {currentPhoto ? (
         <Image source={{ uri: currentPhoto }} style={styles.image} />
       ) : (
         <View style={styles.noPhoto}>
-          <Text style={styles.noPhotoIcon}>📷</Text>
+          <Ionicons name="camera-outline" size={56} color="#ccc" />
+          <Text style={styles.noPhotoText}>Pas de photo</Text>
         </View>
       )}
 
-      {/* INDICATEURS PHOTOS */}
+      {/* Photo progress bars */}
       {photos.length > 1 && (
         <View style={styles.dotsContainer}>
           {photos.map((_, i) => (
@@ -139,25 +132,26 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
         </View>
       )}
 
-      {/* BADGE LIKE */}
+      {/* LIKE badge */}
       <Animated.View style={[styles.likeBadge, { opacity: likeOpacity }]}>
         <Text style={styles.likeText}>LIKE</Text>
       </Animated.View>
 
-      {/* BADGE NOPE */}
+      {/* NOPE badge */}
       <Animated.View style={[styles.nopeBadge, { opacity: nopeOpacity }]}>
         <Text style={styles.nopeText}>NOPE</Text>
       </Animated.View>
 
-      {/* INFO OVERLAY */}
-      <View style={styles.infoOverlay}>
+      {/* Scrim + info */}
+      <View style={styles.infoOverlay} pointerEvents="none">
         <View style={styles.nameRow}>
           <Text style={styles.name}>
             {profile.username}{profile.age ? `, ${profile.age}` : ""}
           </Text>
           {profile.distance != null && (
             <View style={styles.distanceBadge}>
-              <Text style={styles.distanceText}>📍 {profile.distance} km</Text>
+              <Ionicons name="location" size={11} color="rgba(255,255,255,0.9)" />
+              <Text style={styles.distanceText}>{profile.distance} km</Text>
             </View>
           )}
         </View>
@@ -176,22 +170,21 @@ export default SwipeCard;
 const styles = StyleSheet.create({
   card: {
     width: "100%",
-    height: SCREEN_HEIGHT * 0.7,
-    borderRadius: 20,
+    height: SCREEN_HEIGHT * 0.68,
+    borderRadius: 22,
     overflow: "hidden",
-    elevation: 6,
     position: "absolute",
     alignSelf: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
 
   nextCard: {
-    transform: [{ scale: 0.95 }],
-    top: 20,
-    opacity: 0.85,
+    transform: [{ scale: 0.94 }],
+    top: 18,
   },
 
   image: {
@@ -203,19 +196,22 @@ const styles = StyleSheet.create({
   noPhoto: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#F0F0F0",
     justifyContent: "center",
     alignItems: "center",
+    gap: 10,
   },
 
-  noPhotoIcon: { fontSize: 60 },
+  noPhotoText: {
+    fontSize: 15,
+    color: "#bbb",
+  },
 
-  // Barres de progression photos (style Tinder)
   dotsContainer: {
     position: "absolute",
-    top: 10,
-    left: 8,
-    right: 8,
+    top: 12,
+    left: 10,
+    right: 10,
     flexDirection: "row",
     gap: 4,
   },
@@ -227,18 +223,17 @@ const styles = StyleSheet.create({
   },
 
   dotActive: { backgroundColor: "rgba(255,255,255,0.95)" },
-  dotInactive: { backgroundColor: "rgba(255,255,255,0.4)" },
+  dotInactive: { backgroundColor: "rgba(255,255,255,0.35)" },
 
-  // Info en overlay sur la photo
   infoOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "rgba(0,0,0,0.42)",
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 22,
+    paddingTop: 40,
+    paddingBottom: 24,
+    backgroundColor: "rgba(0,0,0,0.45)",
   },
 
   nameRow: {
@@ -246,64 +241,70 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexWrap: "wrap",
     gap: 8,
-    marginBottom: 2,
+    marginBottom: 6,
   },
 
   name: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "800",
     color: "#fff",
-    textShadowColor: "rgba(0,0,0,0.25)",
+    textShadowColor: "rgba(0,0,0,0.4)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
 
   distanceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
     backgroundColor: "rgba(0,0,0,0.35)",
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
   },
 
   distanceText: {
     fontSize: 12,
-    color: "#fff",
+    color: "rgba(255,255,255,0.9)",
     fontWeight: "600",
   },
 
   bio: {
     fontSize: 14,
     color: "rgba(255,255,255,0.85)",
-    marginTop: 4,
+    lineHeight: 20,
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 
   likeBadge: {
     position: "absolute",
-    top: 50,
+    top: 52,
     left: 20,
     borderWidth: 3,
-    borderColor: "#4CAF50",
-    backgroundColor: "rgba(76,175,80,0.12)",
-    paddingHorizontal: 12,
+    borderColor: "#30D158",
+    backgroundColor: "rgba(48,209,88,0.15)",
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    transform: [{ rotate: "-20deg" }],
+    transform: [{ rotate: "-18deg" }],
   },
 
-  likeText: { fontSize: 32, color: "#4CAF50", fontWeight: "bold" },
+  likeText: { fontSize: 30, color: "#30D158", fontWeight: "900", letterSpacing: 1 },
 
   nopeBadge: {
     position: "absolute",
-    top: 50,
+    top: 52,
     right: 20,
     borderWidth: 3,
-    borderColor: "#F44336",
-    backgroundColor: "rgba(244,67,54,0.12)",
-    paddingHorizontal: 12,
+    borderColor: "#FF4458",
+    backgroundColor: "rgba(255,68,88,0.15)",
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    transform: [{ rotate: "20deg" }],
+    transform: [{ rotate: "18deg" }],
   },
 
-  nopeText: { fontSize: 32, color: "#F44336", fontWeight: "bold" },
+  nopeText: { fontSize: 30, color: "#FF4458", fontWeight: "900", letterSpacing: 1 },
 });

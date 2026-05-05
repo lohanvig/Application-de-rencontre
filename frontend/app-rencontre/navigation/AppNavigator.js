@@ -1,4 +1,4 @@
-import React, { useEffect, createRef } from "react";
+import { useEffect, createRef } from "react";
 import { View, ActivityIndicator } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -51,7 +51,19 @@ function MainTabs({ route }) {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#FF4458",
-        tabBarInactiveTintColor: "gray",
+        tabBarInactiveTintColor: "#AEAEB2",
+        tabBarStyle: {
+          backgroundColor: "#fff",
+          borderTopColor: "#EBEBEB",
+          borderTopWidth: 1,
+          height: 62,
+          paddingBottom: 10,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+        },
       }}
     >
       <Tab.Screen
@@ -59,6 +71,7 @@ function MainTabs({ route }) {
         component={HomeScreen}
         initialParams={{ userId }}
         options={{
+          tabBarLabel: "Découvrir",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="heart" size={size} color={color} />
           ),
@@ -70,10 +83,10 @@ function MainTabs({ route }) {
         component={LikesScreen}
         initialParams={{ userId }}
         options={{
+          tabBarLabel: "Likes",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="heart-circle" size={size} color={color} />
           ),
-          tabBarLabel: "Likes",
         }}
       />
 
@@ -82,6 +95,7 @@ function MainTabs({ route }) {
         component={MatchesScreen}
         initialParams={{ userId }}
         options={{
+          tabBarLabel: "Messages",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubbles" size={size} color={color} />
           ),
@@ -93,6 +107,7 @@ function MainTabs({ route }) {
         component={ProfileScreen}
         initialParams={{ userId }}
         options={{
+          tabBarLabel: "Profil",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),

@@ -1,26 +1,23 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   Image,
   TouchableOpacity,
-  Animated
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { playSound } from "../utils/sounds";
+import { colors } from "../styles/theme";
 
-export default function MatchSafeAreaView({ route, navigation }) {
-
+export default function MatchScreen({ route, navigation }) {
   const { userPhoto, match, matchId, currentUserId } = route.params;
-
-  console.log("USER PHOTO:", userPhoto);
-  console.log("MATCH PHOTO:", match.photo_url);
 
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-
-
+  const slideUp = useRef(new Animated.Value(40)).current;
 
   useEffect(() => {
     playSound("match");
@@ -29,146 +26,226 @@ export default function MatchSafeAreaView({ route, navigation }) {
       Animated.spring(scale, {
         toValue: 1,
         friction: 4,
-        useNativeDriver: true
+        tension: 60,
+        useNativeDriver: true,
       }),
       Animated.timing(opacity, {
         toValue: 1,
         duration: 500,
-        useNativeDriver: true
-      })
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideUp, {
+        toValue: 0,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+      }),
     ]).start();
-
   }, []);
 
   return (
-
     <SafeAreaView style={styles.container}>
+      {/* Decorative circles */}
+      <View style={styles.circleOuter} />
+      <View style={styles.circleInner} />
 
-      <Animated.Text
-        style={[
-          styles.title,
-          { opacity }
-        ]}
-      >
-        💘 It's a Match!
-      </Animated.Text>
+      <Animated.View style={[styles.content, { opacity, transform: [{ translateY: slideUp }] }]}>
+        <View style={styles.iconWrapper}>
+          <Ionicons name="heart" size={36} color="#fff" />
+        </View>
 
-      <Animated.Text
-        style={[
-          styles.subtitle,
-          { opacity }
-        ]}
-      >
-        You and {match.username} like each other
-      </Animated.Text>
+        <Text style={styles.title}>It's a Match!</Text>
+        <Text style={styles.subtitle}>
+          Toi et <Text style={styles.subtitleBold}>{match.username}</Text> vous vous plaisez 🎉
+        </Text>
 
-      <Animated.Text
-        style={[
-          styles.heart,
-          {
-            transform: [{ scale }],
-            opacity
+        <Animated.View style={[styles.photosRow, { transform: [{ scale }] }]}>
+          <View style={styles.photoWrapper}>
+            {userPhoto ? (
+              <Image source={{ uri: userPhoto }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Text style={styles.avatarInitial}>Moi</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.heartSeparator}>
+            <Ionicons name="heart" size={28} color="#fff" />
+          </View>
+
+          <View style={styles.photoWrapper}>
+            <Image source={{ uri: match.photo_url }} style={styles.avatar} />
+          </View>
+        </Animated.View>
+
+        <TouchableOpacity
+          style={styles.messageBtn}
+          onPress={() =>
+            navigation.navigate("ChatScreen", { matchId, user: match, currentUserId })
           }
-        ]}
-      >
-        ❤️
-      </Animated.Text>
+          activeOpacity={0.88}
+        >
+          <Ionicons name="chatbubble" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+          <Text style={styles.messageText}>Envoyer un message</Text>
+        </TouchableOpacity>
 
-      <View style={styles.photos}>
-
-        <Image
-          source={{ uri: userPhoto }}
-          style={styles.avatar}
-        />
-
-        <Image
-          source={{ uri: match.photo_url }}
-          style={styles.avatar}
-        />
-
-      </View>
-
-      <TouchableOpacity
-        style={styles.messageBtn}
-        onPress={() => navigation.navigate("ChatScreen", { matchId, user: match, currentUserId })}
-      >
-        <Text style={styles.messageText}>Send Message</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
-      >
-        <Text style={styles.keep}>Keep Swiping</Text>
-      </TouchableOpacity>
-
+        <TouchableOpacity
+          style={styles.keepBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.keepText}>Continuer à swiper</Text>
+        </TouchableOpacity>
+      </Animated.View>
     </SafeAreaView>
-
   );
-
 }
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: "#FF4458",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20
+    overflow: "hidden",
+  },
+
+  circleOuter: {
+    position: "absolute",
+    width: 600,
+    height: 600,
+    borderRadius: 300,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    top: -180,
+    alignSelf: "center",
+  },
+
+  circleInner: {
+    position: "absolute",
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    top: -60,
+    alignSelf: "center",
+  },
+
+  content: {
+    alignItems: "center",
+    paddingHorizontal: 28,
+    width: "100%",
+  },
+
+  iconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
   },
 
   title: {
-    fontSize: 40,
-    color: "white",
-    fontWeight: "bold",
-    textAlign: "center"
+    fontSize: 42,
+    color: "#fff",
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    textShadowColor: "rgba(0,0,0,0.1)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
 
   subtitle: {
-    color: "white",
+    color: "rgba(255,255,255,0.85)",
     marginTop: 10,
-    fontSize: 18,
-    textAlign: "center"
+    fontSize: 16,
+    textAlign: "center",
+    lineHeight: 22,
   },
 
-  heart: {
-    fontSize: 80,
-    marginVertical: 20
+  subtitleBold: {
+    fontWeight: "700",
+    color: "#fff",
   },
 
-  photos: {
+  photosRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 30
+    marginVertical: 36,
+    gap: 16,
+  },
+
+  photoWrapper: {
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
 
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginHorizontal: 10,
-    borderWidth: 3,
-    borderColor: "white"
+    width: 118,
+    height: 118,
+    borderRadius: 59,
+    borderWidth: 4,
+    borderColor: "rgba(255,255,255,0.9)",
+  },
+
+  avatarFallback: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  avatarInitial: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+  },
+
+  heartSeparator: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   messageBtn: {
-    backgroundColor: "white",
-    paddingHorizontal: 40,
-    paddingVertical: 15,
-    borderRadius: 30,
-    marginTop: 10
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 36,
+    paddingVertical: 16,
+    borderRadius: 50,
+    width: "100%",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
 
   messageText: {
     color: "#FF4458",
-    fontWeight: "bold",
-    fontSize: 16
+    fontWeight: "800",
+    fontSize: 16,
+    letterSpacing: 0.2,
   },
 
-  keep: {
-    marginTop: 20,
-    color: "white",
-    fontSize: 16
-  }
+  keepBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
 
+  keepText: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 15,
+    fontWeight: "500",
+  },
 });

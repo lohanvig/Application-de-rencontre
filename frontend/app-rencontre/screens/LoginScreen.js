@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
 import { colors } from "../styles/theme.js";
@@ -55,63 +56,81 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: colors.surface }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.emoji}>❤️</Text>
-        <Text style={styles.title}>MatchApp</Text>
-        <Text style={styles.subtitle}>Retrouve ta moitié</Text>
+        <View style={styles.hero}>
+          <View style={styles.logoCircle}>
+            <Ionicons name="heart" size={42} color="#fff" />
+          </View>
+          <Text style={styles.title}>MatchApp</Text>
+          <Text style={styles.subtitle}>Retrouve ta moitié</Text>
+        </View>
 
-        <TextInput
-          placeholder="Email"
-          style={styles.input}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          onChangeText={setEmail}
-          value={email}
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-          placeholderTextColor="#aaa"
-        />
+        <View style={styles.form}>
+          <View style={styles.inputRow}>
+            <Ionicons name="mail-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
+            <TextInput
+              placeholder="Email"
+              style={styles.input}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              onChangeText={setEmail}
+              value={email}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              placeholderTextColor={colors.textTertiary}
+            />
+          </View>
 
-        <View style={styles.passwordWrapper}>
-          <TextInput
-            ref={passwordRef}
-            placeholder="Mot de passe"
-            secureTextEntry={!showPassword}
-            style={styles.passwordInput}
-            onChangeText={setPassword}
-            value={password}
-            returnKeyType="done"
-            onSubmitEditing={login}
-            placeholderTextColor="#aaa"
-          />
+          <View style={styles.inputRow}>
+            <Ionicons name="lock-closed-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
+            <TextInput
+              ref={passwordRef}
+              placeholder="Mot de passe"
+              secureTextEntry={!showPassword}
+              style={styles.input}
+              onChangeText={setPassword}
+              value={password}
+              returnKeyType="done"
+              onSubmitEditing={login}
+              placeholderTextColor={colors.textTertiary}
+            />
+            <TouchableOpacity onPress={() => setShowPassword((p) => !p)} style={styles.eyeBtn}>
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
-            onPress={() => setShowPassword((p) => !p)}
-            style={styles.eyeBtn}
+            style={[styles.button, loading && { opacity: 0.7 }]}
+            onPress={login}
+            disabled={loading}
+            activeOpacity={0.85}
           >
-            <Text style={styles.eyeText}>{showPassword ? "🙈" : "👁️"}</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Se connecter</Text>
+            )}
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={login}
-          disabled={loading}
+          onPress={() => navigation.navigate("Register")}
+          style={styles.linkRow}
+          activeOpacity={0.7}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Se connecter</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-          <Text style={styles.link}>Pas encore de compte ? Créer un compte</Text>
+          <Text style={styles.linkGray}>Pas encore de compte ? </Text>
+          <Text style={styles.linkPrimary}>Créer un compte</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -121,80 +140,115 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: colors.background,
     justifyContent: "center",
     padding: 28,
+    paddingBottom: 40,
   },
-  emoji: {
-    textAlign: "center",
-    fontSize: 52,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 34,
-    fontWeight: "800",
-    textAlign: "center",
-    color: colors.primary,
-    letterSpacing: 1,
-  },
-  subtitle: {
-    textAlign: "center",
-    color: "#999",
-    fontSize: 15,
-    marginBottom: 40,
-    marginTop: 6,
-  },
-  input: {
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 14,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    fontSize: 15,
-    color: colors.text,
-  },
-  passwordWrapper: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    marginBottom: 14,
+
+  hero: {
     alignItems: "center",
+    marginBottom: 52,
   },
-  passwordInput: {
+
+  logoCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.35,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: colors.text,
+    letterSpacing: 0.3,
+  },
+
+  subtitle: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    marginTop: 7,
+  },
+
+  form: {
+    gap: 12,
+    marginBottom: 32,
+  },
+
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    height: 54,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+
+  inputIcon: {
+    marginRight: 11,
+  },
+
+  input: {
     flex: 1,
-    padding: 15,
     fontSize: 15,
     color: colors.text,
   },
+
   eyeBtn: {
-    paddingHorizontal: 14,
+    padding: 4,
+    marginLeft: 6,
   },
-  eyeText: {
-    fontSize: 18,
-  },
+
   button: {
     backgroundColor: colors.primary,
-    padding: 16,
-    borderRadius: 12,
+    height: 54,
+    borderRadius: 14,
+    justifyContent: "center",
     alignItems: "center",
     marginTop: 6,
-    marginBottom: 20,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
+
   buttonText: {
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
+    letterSpacing: 0.3,
   },
-  link: {
-    textAlign: "center",
-    color: colors.primary,
-    fontWeight: "500",
+
+  linkRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  linkGray: {
     fontSize: 14,
+    color: colors.textSecondary,
+  },
+
+  linkPrimary: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "700",
   },
 });

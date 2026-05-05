@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,9 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { colors } from "../styles/theme";
 
 const DISTANCE_OPTIONS = [
   { label: "10 km", value: 10 },
@@ -34,17 +36,11 @@ export default function FiltersScreen({ navigation }) {
   }, []);
 
   const changeMinAge = (delta) => {
-    setMinAge((prev) => {
-      const next = Math.max(18, Math.min(prev + delta, maxAge - 1));
-      return next;
-    });
+    setMinAge((prev) => Math.max(18, Math.min(prev + delta, maxAge - 1)));
   };
 
   const changeMaxAge = (delta) => {
-    setMaxAge((prev) => {
-      const next = Math.max(minAge + 1, Math.min(prev + delta, 99));
-      return next;
-    });
+    setMaxAge((prev) => Math.max(minAge + 1, Math.min(prev + delta, 99)));
   };
 
   const save = async () => {
@@ -57,61 +53,88 @@ export default function FiltersScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Filtres</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-        {/* ÂGE */}
-        <Text style={styles.sectionTitle}>Tranche d'âge</Text>
-        <View style={styles.rangeRow}>
-          <View style={styles.ageBox}>
+        {/* Age section */}
+        <View style={styles.sectionHeader}>
+          <Ionicons name="person-outline" size={18} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Tranche d'âge</Text>
+        </View>
+
+        <View style={[styles.card, styles.ageCard]}>
+          <View style={styles.ageBlock}>
             <Text style={styles.ageLabel}>Minimum</Text>
             <View style={styles.counter}>
-              <TouchableOpacity style={styles.counterBtn} onPress={() => changeMinAge(-1)}>
-                <Text style={styles.counterBtnText}>−</Text>
+              <TouchableOpacity
+                style={styles.counterBtn}
+                onPress={() => changeMinAge(-1)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="remove" size={20} color={colors.primary} />
               </TouchableOpacity>
               <Text style={styles.counterValue}>{minAge}</Text>
-              <TouchableOpacity style={styles.counterBtn} onPress={() => changeMinAge(1)}>
-                <Text style={styles.counterBtnText}>+</Text>
+              <TouchableOpacity
+                style={styles.counterBtn}
+                onPress={() => changeMinAge(1)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
           </View>
 
-          <Text style={styles.rangeSep}>—</Text>
+          <View style={styles.ageDivider} />
 
-          <View style={styles.ageBox}>
+          <View style={styles.ageBlock}>
             <Text style={styles.ageLabel}>Maximum</Text>
             <View style={styles.counter}>
-              <TouchableOpacity style={styles.counterBtn} onPress={() => changeMaxAge(-1)}>
-                <Text style={styles.counterBtnText}>−</Text>
+              <TouchableOpacity
+                style={styles.counterBtn}
+                onPress={() => changeMaxAge(-1)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="remove" size={20} color={colors.primary} />
               </TouchableOpacity>
               <Text style={styles.counterValue}>{maxAge}</Text>
-              <TouchableOpacity style={styles.counterBtn} onPress={() => changeMaxAge(1)}>
-                <Text style={styles.counterBtnText}>+</Text>
+              <TouchableOpacity
+                style={styles.counterBtn}
+                onPress={() => changeMaxAge(1)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        {/* DISTANCE */}
-        <Text style={styles.sectionTitle}>Distance maximale</Text>
-        <View style={styles.chips}>
-          {DISTANCE_OPTIONS.map((opt) => {
-            const selected = maxDistance === opt.value;
-            return (
-              <TouchableOpacity
-                key={String(opt.value)}
-                style={[styles.chip, selected && styles.chipSelected]}
-                onPress={() => setMaxDistance(opt.value)}
-              >
-                <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        {/* Distance section */}
+        <View style={styles.sectionHeader}>
+          <Ionicons name="location-outline" size={18} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Distance maximale</Text>
         </View>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={save}>
+        <View style={styles.card}>
+          <View style={styles.chips}>
+            {DISTANCE_OPTIONS.map((opt) => {
+              const selected = maxDistance === opt.value;
+              return (
+                <TouchableOpacity
+                  key={String(opt.value)}
+                  style={[styles.chip, selected && styles.chipSelected]}
+                  onPress={() => setMaxDistance(opt.value)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.saveBtn} onPress={save} activeOpacity={0.87}>
+          <Ionicons name="checkmark" size={20} color="#fff" style={{ marginRight: 8 }} />
           <Text style={styles.saveBtnText}>Appliquer les filtres</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -120,84 +143,133 @@ export default function FiltersScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f8f8" },
-  content: { padding: 24, paddingBottom: 40 },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: 20, paddingBottom: 40 },
 
-  title: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#FF4458",
-    marginBottom: 28,
-    textAlign: "center",
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+    marginTop: 20,
   },
 
   sectionTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#333",
-    marginBottom: 14,
-    marginTop: 8,
+    color: colors.text,
   },
 
-  rangeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 28,
-    backgroundColor: "#fff",
+  card: {
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
-    elevation: 1,
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
 
-  ageBox: { alignItems: "center", flex: 1 },
-  ageLabel: { fontSize: 12, color: "#999", marginBottom: 10, fontWeight: "600" },
+  ageBlock: {
+    flex: 1,
+    alignItems: "center",
+    gap: 12,
+  },
 
-  counter: { flexDirection: "row", alignItems: "center" },
+  ageLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+
+  counter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
   counterBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#FFF0F0",
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,68,88,0.15)",
   },
-  counterBtnText: { fontSize: 20, color: "#FF4458", fontWeight: "700", lineHeight: 24 },
-  counterValue: { fontSize: 22, fontWeight: "700", marginHorizontal: 14, color: "#222", minWidth: 30, textAlign: "center" },
 
-  rangeSep: { fontSize: 18, color: "#ccc", marginHorizontal: 4 },
+  counterValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: colors.text,
+    minWidth: 36,
+    textAlign: "center",
+  },
+
+  ageDivider: {
+    width: 1,
+    height: 60,
+    backgroundColor: colors.border,
+    marginHorizontal: 12,
+  },
+
+  ageCard: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
 
   chips: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 36,
+    gap: 8,
   },
 
   chip: {
     paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 25,
+    borderRadius: 50,
     borderWidth: 1.5,
-    borderColor: "#ddd",
-    backgroundColor: "#fff",
+    borderColor: colors.border,
+    backgroundColor: colors.background,
   },
+
   chipSelected: {
-    backgroundColor: "#FF4458",
-    borderColor: "#FF4458",
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
-  chipText: { fontSize: 14, color: "#555", fontWeight: "600" },
-  chipTextSelected: { color: "#fff" },
+
+  chipText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+
+  chipTextSelected: {
+    color: "#fff",
+  },
 
   saveBtn: {
-    backgroundColor: "#FF4458",
-    borderRadius: 14,
-    padding: 16,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 32,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
   },
-  saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  saveBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
 });

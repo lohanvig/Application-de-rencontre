@@ -21,7 +21,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.anonymous.apprencontre"
+      "package": "com.lohan.apprencontre"
     },
     "web": {
       "favicon": "./assets/favicon.png"

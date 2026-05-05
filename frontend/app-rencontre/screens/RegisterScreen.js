@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
 import { colors } from "../styles/theme.js";
@@ -66,11 +67,7 @@ export default function RegisterScreen({ navigation }) {
 
       if (image) {
         const formData = new FormData();
-        formData.append("file", {
-          uri: image,
-          name: "profile.jpg",
-          type: "image/jpeg",
-        });
+        formData.append("file", { uri: image, name: "profile.jpg", type: "image/jpeg" });
         await API.post(`/user/${userId}/photo`, formData);
       }
 
@@ -90,105 +87,132 @@ export default function RegisterScreen({ navigation }) {
       aspect: [1, 1],
       quality: 0.8,
     });
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
-    }
+    if (!result.canceled) setImage(result.assets[0].uri);
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: colors.surface }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Créer un compte</Text>
-        <Text style={styles.subtitle}>Rejoins la communauté ❤️</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Créer un compte</Text>
+          <Text style={styles.subtitle}>Rejoins la communauté 💕</Text>
+        </View>
 
-        <TouchableOpacity onPress={pickImage} style={styles.photoPicker}>
+        {/* Photo picker */}
+        <TouchableOpacity onPress={pickImage} style={styles.photoPicker} activeOpacity={0.8}>
           {image ? (
-            <Image source={{ uri: image }} style={styles.preview} />
+            <Image source={{ uri: image }} style={styles.photoPreview} />
           ) : (
             <View style={styles.photoPlaceholder}>
-              <Text style={styles.photoPlaceholderIcon}>📷</Text>
-              <Text style={styles.photoPlaceholderText}>Ajouter une photo</Text>
+              <Ionicons name="camera-outline" size={32} color={colors.textTertiary} />
+              <Text style={styles.photoText}>Photo de profil</Text>
             </View>
           )}
+          <View style={styles.photoAddBadge}>
+            <Ionicons name="add" size={16} color="#fff" />
+          </View>
         </TouchableOpacity>
 
-        <TextInput
-          placeholder="Prénom *"
-          style={styles.input}
-          value={username}
-          onChangeText={setUsername}
-          maxLength={30}
-          placeholderTextColor="#aaa"
-        />
+        <View style={styles.form}>
+          <View style={styles.inputRow}>
+            <Ionicons name="person-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
+            <TextInput
+              placeholder="Prénom *"
+              style={styles.input}
+              value={username}
+              onChangeText={setUsername}
+              maxLength={30}
+              placeholderTextColor={colors.textTertiary}
+            />
+          </View>
 
-        <TextInput
-          placeholder="Email *"
-          style={styles.input}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-          placeholderTextColor="#aaa"
-        />
+          <View style={styles.inputRow}>
+            <Ionicons name="mail-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
+            <TextInput
+              placeholder="Email *"
+              style={styles.input}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+              placeholderTextColor={colors.textTertiary}
+            />
+          </View>
 
-        <View style={styles.passwordWrapper}>
-          <TextInput
-            placeholder="Mot de passe * (min. 6 caractères)"
-            secureTextEntry={!showPassword}
-            style={styles.passwordInput}
-            value={password}
-            onChangeText={setPassword}
-            placeholderTextColor="#aaa"
-          />
+          <View style={styles.inputRow}>
+            <Ionicons name="lock-closed-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
+            <TextInput
+              placeholder="Mot de passe * (min. 6 caractères)"
+              secureTextEntry={!showPassword}
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholderTextColor={colors.textTertiary}
+            />
+            <TouchableOpacity onPress={() => setShowPassword((p) => !p)} style={styles.eyeBtn}>
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.inputRow}>
+            <Ionicons name="calendar-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
+            <TextInput
+              placeholder="Âge (18+)"
+              keyboardType="numeric"
+              style={styles.input}
+              value={age}
+              onChangeText={setAge}
+              maxLength={2}
+              placeholderTextColor={colors.textTertiary}
+            />
+          </View>
+
+          <View style={[styles.inputRow, styles.bioRow]}>
+            <Ionicons name="pencil-outline" size={18} color={colors.textTertiary} style={[styles.inputIcon, { marginTop: 2 }]} />
+            <TextInput
+              placeholder="Bio (optionnel)"
+              style={[styles.input, styles.bioInput]}
+              value={bio}
+              onChangeText={setBio}
+              multiline
+              maxLength={200}
+              placeholderTextColor={colors.textTertiary}
+            />
+          </View>
+          <Text style={styles.charCount}>{bio.length}/200</Text>
+
           <TouchableOpacity
-            onPress={() => setShowPassword((p) => !p)}
-            style={styles.eyeBtn}
+            style={[styles.button, loading && { opacity: 0.7 }]}
+            onPress={register}
+            disabled={loading}
+            activeOpacity={0.85}
           >
-            <Text style={styles.eyeText}>{showPassword ? "🙈" : "👁️"}</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>S'inscrire</Text>
+            )}
           </TouchableOpacity>
         </View>
 
-        <TextInput
-          placeholder="Âge (18+)"
-          keyboardType="numeric"
-          style={styles.input}
-          value={age}
-          onChangeText={setAge}
-          maxLength={2}
-          placeholderTextColor="#aaa"
-        />
-
-        <TextInput
-          placeholder="Bio (optionnel)"
-          style={[styles.input, styles.bioInput]}
-          value={bio}
-          onChangeText={setBio}
-          multiline
-          maxLength={200}
-          placeholderTextColor="#aaa"
-        />
-        <Text style={styles.charCount}>{bio.length}/200</Text>
-
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={register}
-          disabled={loading}
+          onPress={() => navigation.navigate("Login")}
+          style={styles.linkRow}
+          activeOpacity={0.7}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>S'inscrire</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-          <Text style={styles.link}>Déjà un compte ? Se connecter</Text>
+          <Text style={styles.linkGray}>Déjà un compte ? </Text>
+          <Text style={styles.linkPrimary}>Se connecter</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -198,117 +222,165 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: colors.background,
-    justifyContent: "center",
-    padding: 25,
+    padding: 28,
+    paddingTop: 20,
     paddingBottom: 40,
   },
-  title: {
-    fontSize: 30,
-    fontWeight: "800",
-    marginBottom: 6,
-    textAlign: "center",
-    color: colors.primary,
-  },
-  subtitle: {
-    textAlign: "center",
-    color: "#999",
+
+  header: {
+    alignItems: "center",
     marginBottom: 28,
-    fontSize: 15,
   },
+
+  title: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: colors.text,
+    letterSpacing: 0.2,
+  },
+
+  subtitle: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    marginTop: 6,
+  },
+
   photoPicker: {
     alignSelf: "center",
-    marginBottom: 24,
+    marginBottom: 28,
+    position: "relative",
   },
+
   photoPlaceholder: {
     width: 110,
     height: 110,
     borderRadius: 55,
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     borderWidth: 2,
     borderColor: colors.border,
     borderStyle: "dashed",
     justifyContent: "center",
     alignItems: "center",
+    gap: 6,
   },
-  photoPlaceholderIcon: {
-    fontSize: 28,
-    marginBottom: 4,
-  },
-  photoPlaceholderText: {
+
+  photoText: {
     fontSize: 11,
-    color: "#999",
-    textAlign: "center",
+    color: colors.textTertiary,
+    fontWeight: "500",
   },
-  preview: {
+
+  photoPreview: {
     width: 110,
     height: 110,
     borderRadius: 55,
-    borderWidth: 2.5,
+    borderWidth: 3,
     borderColor: colors.primary,
   },
-  input: {
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 12,
+
+  photoAddBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+
+  form: {
+    gap: 12,
+    marginBottom: 28,
+  },
+
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.border,
+    paddingHorizontal: 16,
+    height: 54,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+
+  bioRow: {
+    height: "auto",
+    paddingVertical: 14,
+    alignItems: "flex-start",
+  },
+
+  inputIcon: {
+    marginRight: 11,
+  },
+
+  input: {
+    flex: 1,
     fontSize: 15,
     color: colors.text,
   },
+
   bioInput: {
-    height: 90,
+    minHeight: 70,
     textAlignVertical: "top",
-    marginBottom: 4,
   },
+
+  eyeBtn: {
+    padding: 4,
+    marginLeft: 6,
+  },
+
   charCount: {
     fontSize: 11,
-    color: "#aaa",
+    color: colors.textTertiary,
     textAlign: "right",
-    marginBottom: 12,
+    marginTop: -6,
   },
-  passwordWrapper: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    marginBottom: 12,
-    alignItems: "center",
-  },
-  passwordInput: {
-    flex: 1,
-    padding: 14,
-    fontSize: 15,
-    color: colors.text,
-  },
-  eyeBtn: {
-    paddingHorizontal: 14,
-  },
-  eyeText: {
-    fontSize: 18,
-  },
+
   button: {
     backgroundColor: colors.primary,
-    padding: 16,
-    borderRadius: 12,
+    height: 54,
+    borderRadius: 14,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
-    marginBottom: 18,
+    marginTop: 6,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
+
   buttonText: {
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
+    letterSpacing: 0.3,
   },
-  link: {
-    textAlign: "center",
-    color: colors.primary,
-    fontWeight: "500",
+
+  linkRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  linkGray: {
     fontSize: 14,
+    color: colors.textSecondary,
+  },
+
+  linkPrimary: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: "700",
   },
 });

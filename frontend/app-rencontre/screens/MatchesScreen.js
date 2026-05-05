@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,8 +11,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 import API from "../api/api";
 import { useWS } from "../context/WebSocketContext";
+import { colors } from "../styles/theme";
 
 export default function MatchListScreen({ route, navigation }) {
   const userId = route?.params?.userId;
@@ -32,7 +34,6 @@ export default function MatchListScreen({ route, navigation }) {
     loadMatches();
   }, []);
 
-  // Abonnement aux messages WebSocket (connexion partagée via context)
   useEffect(() => {
     const unsubscribe = subscribe((newMessage) => {
       if (newMessage.type !== "new_message") return;
@@ -41,11 +42,11 @@ export default function MatchListScreen({ route, navigation }) {
 
       setMatches((prev) => {
         const updated = [...prev];
-        const index = updated.findIndex((m) => m.match_id === matchId);
+        const idx = updated.findIndex((m) => m.match_id === matchId);
 
-        if (index !== -1) {
-          updated[index] = {
-            ...updated[index],
+        if (idx !== -1) {
+          updated[idx] = {
+            ...updated[idx],
             last_message: newMessage.content,
             updated_at: newMessage.created_at || new Date().toISOString(),
           };
@@ -134,10 +135,11 @@ export default function MatchListScreen({ route, navigation }) {
       item.updated_at &&
       (!lastSeen[item.match_id] || lastSeen[item.match_id] < item.updated_at);
     const hasUnread = wsUnread > 0 || hasNewSinceLastSeen;
+    const isOnline = onlineUsers.has(item.id) || item.is_online;
 
     return (
       <TouchableOpacity
-        style={[styles.matchItem, hasUnread && styles.matchItemUnread]}
+        style={styles.matchItem}
         onPress={() => openChat(item)}
         onLongPress={() => unmatch(item.match_id)}
         activeOpacity={0.7}
@@ -154,20 +156,19 @@ export default function MatchListScreen({ route, navigation }) {
               </Text>
             </View>
           )}
-          {(onlineUsers.has(item.id) || item.is_online) && (
-            <View style={styles.onlineDot} />
-          )}
+          {isOnline && <View style={styles.onlineDot} />}
         </View>
 
         <View style={styles.info}>
           <View style={styles.nameRow}>
-            <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>
+            <Text
+              style={[styles.name, hasUnread && styles.nameUnread]}
+              numberOfLines={1}
+            >
               {item.username}
             </Text>
             {item.updated_at && (
-              <Text style={styles.timeText}>
-                {formatTime(item.updated_at)}
-              </Text>
+              <Text style={styles.timeText}>{formatTime(item.updated_at)}</Text>
             )}
           </View>
           <Text
@@ -176,7 +177,7 @@ export default function MatchListScreen({ route, navigation }) {
           >
             {item.last_message?.length > 0
               ? item.last_message
-              : "Démarre la conversation 👀"}
+              : "Démarre la conversation 👋"}
           </Text>
         </View>
 
@@ -195,19 +196,25 @@ export default function MatchListScreen({ route, navigation }) {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
-        <Text style={styles.headerSub}>{matches.length} conversation{matches.length !== 1 ? "s" : ""}</Text>
+        <Text style={styles.headerSub}>
+          {matches.length} conversation{matches.length !== 1 ? "s" : ""}
+        </Text>
       </View>
+
       <FlatList
         data={matches}
         keyExtractor={(item) => item.match_id.toString()}
         renderItem={renderItem}
         contentContainerStyle={[styles.listContent, { paddingBottom: tabBarHeight + 12 }]}
         extraData={unread}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>💔</Text>
-            <Text style={styles.empty}>Aucun match pour le moment</Text>
-            <Text style={styles.emptySub}>Continue de swiper !</Text>
+            <View style={styles.emptyIconWrapper}>
+              <Ionicons name="chatbubble-outline" size={44} color={colors.textTertiary} />
+            </View>
+            <Text style={styles.emptyTitle}>Aucun match pour le moment</Text>
+            <Text style={styles.emptySub}>Continue de swiper pour trouver ta moitié !</Text>
           </View>
         }
       />
@@ -216,52 +223,48 @@ export default function MatchListScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f8f8" },
+  container: { flex: 1, backgroundColor: colors.background },
 
   header: {
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 10,
+    paddingBottom: 14,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    backgroundColor: "#fff",
+    borderBottomColor: colors.border,
   },
+
   headerTitle: {
     fontSize: 24,
-    fontWeight: "700",
-    color: "#111",
+    fontWeight: "800",
+    color: colors.text,
   },
+
   headerSub: {
     fontSize: 13,
-    color: "#aaa",
-    marginTop: 2,
+    color: colors.textSecondary,
+    marginTop: 3,
   },
 
   listContent: {
     paddingTop: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
   },
 
   matchItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 14,
     marginVertical: 3,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     overflow: "hidden",
-    elevation: 1,
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-  },
-
-  matchItemUnread: {
-    backgroundColor: "#FFFAF8",
-    elevation: 3,
-    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
 
   unreadBar: {
@@ -269,8 +272,8 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    width: 4,
-    backgroundColor: "#FF4458",
+    width: 3,
+    backgroundColor: colors.primary,
     borderTopLeftRadius: 16,
     borderBottomLeftRadius: 16,
   },
@@ -281,11 +284,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#eee",
+    backgroundColor: colors.border,
   },
 
   avatarFallback: {
-    backgroundColor: "#FFD6D6",
+    backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -293,7 +296,7 @@ const styles = StyleSheet.create({
   avatarInitial: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#FF4458",
+    color: colors.primary,
   },
 
   onlineDot: {
@@ -303,54 +306,52 @@ const styles = StyleSheet.create({
     width: 13,
     height: 13,
     borderRadius: 7,
-    backgroundColor: "#4CD964",
+    backgroundColor: colors.online,
     borderWidth: 2,
-    borderColor: "#fff",
+    borderColor: colors.surface,
   },
 
   info: {
     flex: 1,
     marginLeft: 14,
-    justifyContent: "center",
   },
 
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 3,
+    marginBottom: 4,
   },
 
   name: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#222",
+    color: colors.text,
     flex: 1,
   },
 
   nameUnread: {
     fontWeight: "700",
-    color: "#000",
   },
 
   timeText: {
     fontSize: 12,
-    color: "#bbb",
+    color: colors.textTertiary,
     marginLeft: 8,
   },
 
   lastMessage: {
     fontSize: 14,
-    color: "#aaa",
+    color: colors.textTertiary,
   },
 
   lastMessageUnread: {
-    color: "#333",
+    color: colors.textSecondary,
     fontWeight: "600",
   },
 
   badge: {
-    backgroundColor: "#FF4458",
+    backgroundColor: colors.primary,
     borderRadius: 12,
     minWidth: 22,
     height: 22,
@@ -369,22 +370,36 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: "center",
     paddingTop: 80,
+    paddingHorizontal: 32,
   },
 
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
+  emptyIconWrapper: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
 
-  empty: {
+  emptyTitle: {
     fontSize: 17,
-    fontWeight: "600",
-    color: "#555",
-    marginBottom: 6,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 8,
+    textAlign: "center",
   },
 
   emptySub: {
     fontSize: 14,
-    color: "#999",
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
   },
 });

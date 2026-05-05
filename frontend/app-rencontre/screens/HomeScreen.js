@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -19,6 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
 import SwipeCard from "../components/SwipeCard";
 import { playSound } from "../utils/sounds";
+import { colors } from "../styles/theme";
 
 export default function HomeScreen({ route, navigation }) {
   const userId = route?.params?.userId;
@@ -50,7 +51,6 @@ export default function HomeScreen({ route, navigation }) {
     init();
   }, []);
 
-  // Recharge les profils quand on revient sur l'écran (ex : retour depuis Filtres)
   useFocusEffect(
     useCallback(() => {
       if (!initialLoadDone.current) return;
@@ -91,7 +91,6 @@ export default function HomeScreen({ route, navigation }) {
     }
   };
 
-  // 🔔 LISTENERS NOTIFICATIONS
   useEffect(() => {
     notificationListener.current =
       Notifications.addNotificationReceivedListener((notification) => {
@@ -121,7 +120,6 @@ export default function HomeScreen({ route, navigation }) {
     };
   }, []);
 
-  // 📱 PUSH TOKEN
   const setupPushToken = async () => {
     try {
       if (!Device.isDevice) return;
@@ -194,7 +192,7 @@ export default function HomeScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FF4458" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -202,8 +200,13 @@ export default function HomeScreen({ route, navigation }) {
   if (index >= profiles.length) {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.noMore}>Plus de profils 👀</Text>
+        <View style={styles.emptyIconWrapper}>
+          <Ionicons name="heart-dislike-outline" size={52} color={colors.textTertiary} />
+        </View>
+        <Text style={styles.noMore}>Plus de profils pour l'instant</Text>
+        <Text style={styles.noMoreSub}>Reviens un peu plus tard 👀</Text>
         <TouchableOpacity onPress={() => loadProfiles(filters, userLocation)} style={styles.reloadBtn}>
+          <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 8 }} />
           <Text style={styles.reloadBtnText}>Réessayer</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -214,12 +217,12 @@ export default function HomeScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Bouton filtres */}
       <TouchableOpacity
         style={styles.filterBtn}
         onPress={() => navigation.navigate("Filters")}
+        activeOpacity={0.8}
       >
-        <Ionicons name="options-outline" size={22} color="#FF4458" />
+        <Ionicons name="options-outline" size={22} color={colors.primary} />
       </TouchableOpacity>
 
       <View style={styles.cardArea}>
@@ -239,16 +242,19 @@ export default function HomeScreen({ route, navigation }) {
 
       <View style={styles.buttons}>
         <TouchableOpacity
-          style={[styles.button, styles.dislike]}
+          style={styles.nopeBtn}
           onPress={() => cardRef.current?.swipeLeft()}
+          activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>❌</Text>
+          <Ionicons name="close" size={32} color={colors.primary} />
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={[styles.button, styles.like]}
+          style={styles.likeBtn}
           onPress={() => cardRef.current?.swipeRight()}
+          activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>❤️</Text>
+          <Ionicons name="heart" size={28} color={colors.online} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -256,62 +262,133 @@ export default function HomeScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8F9FB" },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
 
   cardArea: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
+    marginTop: 8,
   },
 
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    padding: 32,
+  },
 
-  noMore: { fontSize: 18, color: "#555", marginBottom: 16 },
+  emptyIconWrapper: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+
+  noMore: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+
+  noMoreSub: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 28,
+    textAlign: "center",
+  },
+
   reloadBtn: {
-    backgroundColor: "#FF4458",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primary,
     paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 25,
+    paddingVertical: 14,
+    borderRadius: 30,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  reloadBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
+  reloadBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 15,
+  },
 
   filterBtn: {
     position: "absolute",
-    top: 12,
+    top: 16,
     right: 16,
     zIndex: 10,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 22,
     width: 44,
     height: 44,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 4,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
 
   buttons: {
-    position: "absolute",
-    bottom: 30,
-    width: "100%",
     flexDirection: "row",
-    justifyContent: "space-evenly",
-  },
-
-  button: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 6,
+    gap: 28,
+    paddingBottom: 20,
+    paddingTop: 12,
   },
 
-  like: { backgroundColor: "#4CAF50" },
-  dislike: { backgroundColor: "#F44336" },
-  buttonText: { fontSize: 30 },
+  nopeBtn: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,68,88,0.12)",
+  },
+
+  likeBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#30D158",
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+    borderWidth: 1.5,
+    borderColor: "rgba(48,209,88,0.12)",
+  },
 });
