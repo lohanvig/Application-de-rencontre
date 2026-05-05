@@ -13,9 +13,17 @@ import { Ionicons } from "@expo/vector-icons";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
 
-const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
+// Peek visible en bas de la carte suivante (px)
+const NEXT_PEEK = 20;
+
+const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext, containerHeight }, ref) => {
   const position = useRef(new Animated.ValueXY()).current;
   const [photoIndex, setPhotoIndex] = useState(0);
+
+  // Hauteur de la carte = 92% de la zone disponible, ou fallback
+  const cardH = containerHeight
+    ? Math.floor(containerHeight * 0.92)
+    : Math.floor(SCREEN_HEIGHT * 0.62);
 
   const photos =
     profile.photos?.length > 0
@@ -96,12 +104,20 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
 
   const currentPhoto = photos[photoIndex];
 
+  // Décalage du haut de la carte suivante pour montrer le bas
+  // scale: 0.94 → les bords visuels reculent de cardH*0.03 de chaque côté
+  // Pour que le bas dépasse de NEXT_PEEK: top = cardH*0.03 + NEXT_PEEK
+  const nextCardTop = containerHeight
+    ? Math.floor(cardH * 0.03 + NEXT_PEEK)
+    : 30;
+
   return (
     <Animated.View
       style={[
         styles.card,
-        isNext && styles.nextCard,
-        {
+        { height: cardH },
+        isNext && { transform: [{ scale: 0.94 }], top: nextCardTop },
+        !isNext && {
           transform: [
             { translateX: position.x },
             { translateY: position.y },
@@ -115,7 +131,7 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
         <Image source={{ uri: currentPhoto }} style={styles.image} />
       ) : (
         <View style={styles.noPhoto}>
-          <Ionicons name="camera-outline" size={56} color="#ccc" />
+          <Ionicons name="camera-outline" size={52} color="#D1D5DB" />
           <Text style={styles.noPhotoText}>Pas de photo</Text>
         </View>
       )}
@@ -142,7 +158,7 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
         <Text style={styles.nopeText}>NOPE</Text>
       </Animated.View>
 
-      {/* Scrim + info */}
+      {/* Info overlay */}
       <View style={styles.infoOverlay} pointerEvents="none">
         <View style={styles.nameRow}>
           <Text style={styles.name}>
@@ -150,7 +166,7 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext }, ref) => {
           </Text>
           {profile.distance != null && (
             <View style={styles.distanceBadge}>
-              <Ionicons name="location" size={11} color="rgba(255,255,255,0.9)" />
+              <Ionicons name="location" size={11} color="rgba(255,255,255,0.95)" />
               <Text style={styles.distanceText}>{profile.distance} km</Text>
             </View>
           )}
@@ -170,21 +186,16 @@ export default SwipeCard;
 const styles = StyleSheet.create({
   card: {
     width: "100%",
-    height: SCREEN_HEIGHT * 0.68,
-    borderRadius: 22,
+    borderRadius: 24,
     overflow: "hidden",
     position: "absolute",
     alignSelf: "center",
+    backgroundColor: "#fff",
     shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 8,
-  },
-
-  nextCard: {
-    transform: [{ scale: 0.94 }],
-    top: 18,
   },
 
   image: {
@@ -196,15 +207,16 @@ const styles = StyleSheet.create({
   noPhoto: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#F0F0F0",
+    backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
     gap: 10,
   },
 
   noPhotoText: {
-    fontSize: 15,
-    color: "#bbb",
+    fontSize: 14,
+    color: "#9CA3AF",
+    fontWeight: "500",
   },
 
   dotsContainer: {
@@ -222,7 +234,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 
-  dotActive: { backgroundColor: "rgba(255,255,255,0.95)" },
+  dotActive: { backgroundColor: "rgba(255,255,255,0.98)" },
   dotInactive: { backgroundColor: "rgba(255,255,255,0.35)" },
 
   infoOverlay: {
@@ -231,9 +243,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 24,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    paddingTop: 60,
+    paddingBottom: 22,
+    backgroundColor: "rgba(0,0,0,0.42)",
   },
 
   nameRow: {
@@ -241,23 +253,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexWrap: "wrap",
     gap: 8,
-    marginBottom: 6,
+    marginBottom: 5,
   },
 
   name: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "800",
     color: "#fff",
-    textShadowColor: "rgba(0,0,0,0.4)",
+    textShadowColor: "rgba(0,0,0,0.5)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 6,
   },
 
   distanceBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.3)",
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -265,46 +277,46 @@ const styles = StyleSheet.create({
 
   distanceText: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.9)",
+    color: "rgba(255,255,255,0.95)",
     fontWeight: "600",
   },
 
   bio: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
+    color: "rgba(255,255,255,0.88)",
     lineHeight: 20,
-    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowColor: "rgba(0,0,0,0.4)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
 
   likeBadge: {
     position: "absolute",
     top: 52,
-    left: 20,
+    left: 18,
     borderWidth: 3,
-    borderColor: "#30D158",
-    backgroundColor: "rgba(48,209,88,0.15)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderColor: "#22C55E",
+    backgroundColor: "rgba(34,197,94,0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 10,
     transform: [{ rotate: "-18deg" }],
   },
 
-  likeText: { fontSize: 30, color: "#30D158", fontWeight: "900", letterSpacing: 1 },
+  likeText: { fontSize: 28, color: "#22C55E", fontWeight: "900", letterSpacing: 1 },
 
   nopeBadge: {
     position: "absolute",
     top: 52,
-    right: 20,
+    right: 18,
     borderWidth: 3,
     borderColor: "#FF4458",
-    backgroundColor: "rgba(255,68,88,0.15)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    backgroundColor: "rgba(255,68,88,0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 10,
     transform: [{ rotate: "18deg" }],
   },
 
-  nopeText: { fontSize: 30, color: "#FF4458", fontWeight: "900", letterSpacing: 1 },
+  nopeText: { fontSize: 28, color: "#FF4458", fontWeight: "900", letterSpacing: 1 },
 });

@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Text,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
@@ -30,6 +31,7 @@ export default function HomeScreen({ route, navigation }) {
   const [myPhoto, setMyPhoto] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [filters, setFilters] = useState({ minAge: 18, maxAge: 50, maxDistance: null });
+  const [cardAreaH, setCardAreaH] = useState(0);
 
   const notificationListener = useRef();
   const responseListener = useRef();
@@ -93,9 +95,7 @@ export default function HomeScreen({ route, navigation }) {
 
   useEffect(() => {
     notificationListener.current =
-      Notifications.addNotificationReceivedListener((notification) => {
-        console.log("Notification reçue:", notification);
-      });
+      Notifications.addNotificationReceivedListener(() => {});
 
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener(async (response) => {
@@ -108,9 +108,7 @@ export default function HomeScreen({ route, navigation }) {
               currentUserId: userId,
               user: userRes.data,
             });
-          } catch (err) {
-            console.log("Erreur récupération user depuis notif:", err);
-          }
+          } catch (err) {}
         }
       });
 
@@ -131,9 +129,7 @@ export default function HomeScreen({ route, navigation }) {
       const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
       if (!token) return;
       await API.post("/user/push-token", { user_id: userId, push_token: token });
-    } catch (err) {
-      console.log("Push token error:", err);
-    }
+    } catch (err) {}
   };
 
   const loadProfiles = async (filtersToUse, loc) => {
@@ -148,18 +144,14 @@ export default function HomeScreen({ route, navigation }) {
       }
       const response = await API.get(`/profiles/${userId}`, { params });
       setProfiles(response.data.profiles || []);
-    } catch (error) {
-      console.log("API ERROR:", error);
-    }
+    } catch (error) {}
   };
 
   const loadMyPhoto = async () => {
     try {
       const res = await API.get(`/user/${userId}`);
       setMyPhoto(res.data.photo_url);
-    } catch (error) {
-      console.log("PHOTO ERROR:", error);
-    }
+    } catch (error) {}
   };
 
   const nextProfile = () => setIndex((prev) => prev + 1);
@@ -179,9 +171,7 @@ export default function HomeScreen({ route, navigation }) {
         });
       }
       nextProfile();
-    } catch (error) {
-      console.log("LIKE ERROR:", error);
-    }
+    } catch (error) {}
   };
 
   const dislike = () => {
@@ -199,13 +189,17 @@ export default function HomeScreen({ route, navigation }) {
 
   if (index >= profiles.length) {
     return (
-      <SafeAreaView style={styles.center}>
+      // edges=["top"] : le bottom safe area est géré par la tab bar
+      <SafeAreaView style={styles.center} edges={["top"]}>
         <View style={styles.emptyIconWrapper}>
-          <Ionicons name="heart-dislike-outline" size={52} color={colors.textTertiary} />
+          <Ionicons name="heart-dislike-outline" size={48} color={colors.textTertiary} />
         </View>
         <Text style={styles.noMore}>Plus de profils pour l'instant</Text>
         <Text style={styles.noMoreSub}>Reviens un peu plus tard 👀</Text>
-        <TouchableOpacity onPress={() => loadProfiles(filters, userLocation)} style={styles.reloadBtn}>
+        <TouchableOpacity
+          onPress={() => loadProfiles(filters, userLocation)}
+          style={styles.reloadBtn}
+        >
           <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 8 }} />
           <Text style={styles.reloadBtnText}>Réessayer</Text>
         </TouchableOpacity>
@@ -216,12 +210,14 @@ export default function HomeScreen({ route, navigation }) {
   const currentProfile = profiles[index];
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header banner */}
+    // edges=["top"] uniquement — la tab bar gère le bas
+    <SafeAreaView style={styles.container} edges={["top"]}>
+
+      {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.headerBrand}>
           <View style={styles.headerLogo}>
-            <Ionicons name="heart" size={15} color="#fff" />
+            <Ionicons name="heart" size={14} color="#fff" />
           </View>
           <Text style={styles.headerTitle}>Découvrir</Text>
         </View>
@@ -230,35 +226,39 @@ export default function HomeScreen({ route, navigation }) {
           onPress={() => navigation.navigate("Filters")}
           activeOpacity={0.8}
         >
-          <Ionicons name="options-outline" size={18} color={colors.primary} />
+          <Ionicons name="options-outline" size={17} color={colors.primary} />
           <Text style={styles.filterBtnText}>Filtres</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Cards */}
-      <View style={styles.cardArea}>
-        {profiles[index + 1] && (
-          <SwipeCard profile={profiles[index + 1]} isNext />
+      {/* ── Cards ── */}
+      <View
+        style={styles.cardArea}
+        onLayout={(e) => setCardAreaH(e.nativeEvent.layout.height)}
+      >
+        {profiles[index + 1] && cardAreaH > 0 && (
+          <SwipeCard profile={profiles[index + 1]} isNext containerHeight={cardAreaH} />
         )}
-        {currentProfile && (
+        {currentProfile && cardAreaH > 0 && (
           <SwipeCard
             ref={cardRef}
             key={currentProfile.id}
             profile={currentProfile}
             onLike={like}
             onDislike={dislike}
+            containerHeight={cardAreaH}
           />
         )}
       </View>
 
-      {/* Action buttons */}
+      {/* ── Buttons ── */}
       <View style={styles.buttons}>
         <TouchableOpacity
           style={styles.nopeBtn}
           onPress={() => cardRef.current?.swipeLeft()}
           activeOpacity={0.85}
         >
-          <Ionicons name="close" size={32} color={colors.primary} />
+          <Ionicons name="close" size={30} color={colors.primary} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -266,9 +266,10 @@ export default function HomeScreen({ route, navigation }) {
           onPress={() => cardRef.current?.swipeRight()}
           activeOpacity={0.85}
         >
-          <Ionicons name="heart" size={28} color={colors.online} />
+          <Ionicons name="heart" size={26} color="#22C55E" />
         </TouchableOpacity>
       </View>
+
     </SafeAreaView>
   );
 }
@@ -276,52 +277,64 @@ export default function HomeScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#F8F8FA",
   },
 
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8F8FA",
+    padding: 32,
+  },
+
+  /* ── Header ── */
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: colors.surface,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: "#EBEBEB",
+    // Toujours au-dessus des cartes
+    zIndex: 10,
+    elevation: 10,
   },
 
   headerBrand: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 9,
   },
 
   headerLogo: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
   },
 
   headerTitle: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: "800",
-    color: colors.text,
-    letterSpacing: 0.2,
+    color: "#1A1A2E",
+    letterSpacing: 0.1,
   },
 
   filterBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    gap: 5,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: "rgba(255,68,88,0.06)",
   },
 
   filterBtnText: {
@@ -330,26 +343,63 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 
+  /* ── Card area ── */
   cardArea: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 6,
   },
 
-  center: {
-    flex: 1,
+  /* ── Buttons ── */
+  buttons: {
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.background,
-    padding: 32,
+    gap: 32,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 14 : 16,
+    backgroundColor: "#F8F8FA",
   },
 
+  nopeBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,68,88,0.16)",
+  },
+
+  likeBtn: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#22C55E",
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+    borderWidth: 1.5,
+    borderColor: "rgba(34,197,94,0.16)",
+  },
+
+  /* ── Empty state ── */
   emptyIconWrapper: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.surface,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 20,
@@ -363,14 +413,14 @@ const styles = StyleSheet.create({
   noMore: {
     fontSize: 18,
     fontWeight: "700",
-    color: colors.text,
+    color: "#1A1A2E",
     marginBottom: 8,
     textAlign: "center",
   },
 
   noMoreSub: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: "#6B7280",
     marginBottom: 28,
     textAlign: "center",
   },
@@ -383,7 +433,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 30,
     shadowColor: colors.primary,
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.28,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
@@ -393,46 +443,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 15,
-  },
-
-  buttons: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 28,
-    paddingBottom: 20,
-    paddingTop: 12,
-  },
-
-  nopeBtn: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: colors.primary,
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-    borderWidth: 1.5,
-    borderColor: "rgba(255,68,88,0.12)",
-  },
-
-  likeBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#30D158",
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
-    borderWidth: 1.5,
-    borderColor: "rgba(48,209,88,0.12)",
   },
 });

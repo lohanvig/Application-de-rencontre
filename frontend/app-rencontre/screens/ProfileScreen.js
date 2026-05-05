@@ -212,7 +212,7 @@ export default function ProfileScreen({ route, navigation }) {
   const mainPhoto = photos.find((p) => p.is_main)?.photo_url || photos[0]?.photo_url || null;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}

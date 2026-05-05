@@ -56,13 +56,17 @@ function MainTabs({ route }) {
           backgroundColor: "#fff",
           borderTopColor: "#EBEBEB",
           borderTopWidth: 1,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === "ios" ? 4 : 10,
-          height: Platform.OS === "ios" ? 58 : 62,
+          // Pas de hauteur fixe — React Navigation + SafeAreaProvider gèrent les insets
+          paddingTop: 9,
+          paddingBottom: Platform.OS === "ios" ? 0 : 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: "600",
+          marginTop: 1,
+        },
+        tabBarIconStyle: {
+          marginBottom: 0,
         },
       }}
     >
