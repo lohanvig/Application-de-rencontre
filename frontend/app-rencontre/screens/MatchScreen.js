@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   Animated
 } from "react-native";
-import Screen from "../components/Screen";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { playSound } from "../utils/sounds";
 
-export default function MatchScreen({ route, navigation }) {
+export default function MatchSafeAreaView({ route, navigation }) {
 
   const { userPhoto, match } = route.params;
 
@@ -42,7 +42,7 @@ export default function MatchScreen({ route, navigation }) {
 
   return (
 
-    <Screen style={styles.container}>
+    <SafeAreaView style={styles.container}>
 
       <Animated.Text
         style={[
@@ -101,7 +101,7 @@ export default function MatchScreen({ route, navigation }) {
         <Text style={styles.keep}>Keep Swiping</Text>
       </TouchableOpacity>
 
-    </Screen>
+    </SafeAreaView>
 
   );
 
