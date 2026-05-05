@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -17,6 +18,9 @@ import API from "../api/api";
 import { colors } from "../styles/theme.js";
 
 export default function LoginScreen({ navigation }) {
+  const { height: screenH } = useWindowDimensions();
+  const isSmall = screenH < 700;
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,9 +68,9 @@ export default function LoginScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.hero}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="heart" size={42} color="#fff" />
+        <View style={[styles.hero, isSmall && { marginBottom: 28 }]}>
+          <View style={[styles.logoCircle, isSmall && { width: 68, height: 68, borderRadius: 34, marginBottom: 14 }]}>
+            <Ionicons name="heart" size={isSmall ? 32 : 42} color="#fff" />
           </View>
           <Text style={styles.title}>MatchApp</Text>
           <Text style={styles.subtitle}>Retrouve ta moitié</Text>

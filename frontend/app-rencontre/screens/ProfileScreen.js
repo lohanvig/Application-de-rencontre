@@ -18,6 +18,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
 import { colors } from "../styles/theme";
 
+const DISTANCE_OPTIONS = [
+  { label: "10 km", value: 10 },
+  { label: "25 km", value: 25 },
+  { label: "50 km", value: 50 },
+  { label: "100 km", value: 100 },
+  { label: "Illimité", value: null },
+];
+
 export default function ProfileScreen({ route, navigation }) {
   const { userId } = route.params;
 
@@ -31,13 +39,18 @@ export default function ProfileScreen({ route, navigation }) {
   const [age, setAge] = useState("");
   const [photos, setPhotos] = useState([]);
 
+  const [minAge, setMinAge] = useState(18);
+  const [maxAge, setMaxAge] = useState(50);
+  const [maxDistance, setMaxDistance] = useState(null);
+
   useEffect(() => { loadProfile(); }, []);
 
   const loadProfile = async () => {
     try {
-      const [userRes, photosRes] = await Promise.all([
+      const [userRes, photosRes, stored] = await Promise.all([
         API.get(`/user/${userId}`),
         API.get(`/user/${userId}/photos`),
+        AsyncStorage.getItem("swipeFilters"),
       ]);
       const u = userRes.data;
       setProfile(u);
@@ -45,6 +58,12 @@ export default function ProfileScreen({ route, navigation }) {
       setBio(u.bio || "");
       setAge(u.age ? String(u.age) : "");
       setPhotos(photosRes.data.photos || []);
+      if (stored) {
+        const f = JSON.parse(stored);
+        setMinAge(f.minAge ?? 18);
+        setMaxAge(f.maxAge ?? 50);
+        setMaxDistance(f.maxDistance ?? null);
+      }
     } catch (err) {
       console.log("PROFILE ERROR:", err);
       Alert.alert("Erreur", "Impossible de charger le profil.");
@@ -132,11 +151,14 @@ export default function ProfileScreen({ route, navigation }) {
     if (!validate()) return;
     setSaving(true);
     try {
-      await API.put(`/user/${userId}`, {
-        username: username.trim(),
-        bio: bio.trim(),
-        age: parseInt(age) || profile.age,
-      });
+      await Promise.all([
+        API.put(`/user/${userId}`, {
+          username: username.trim(),
+          bio: bio.trim(),
+          age: parseInt(age) || profile.age,
+        }),
+        AsyncStorage.setItem("swipeFilters", JSON.stringify({ minAge, maxAge, maxDistance })),
+      ]);
       setProfile((prev) => ({
         ...prev,
         username: username.trim(),
@@ -174,6 +196,11 @@ export default function ProfileScreen({ route, navigation }) {
     setEditing(false);
   };
 
+  const changeMinAge = (delta) =>
+    setMinAge((prev) => Math.max(18, Math.min(prev + delta, maxAge - 1)));
+  const changeMaxAge = (delta) =>
+    setMaxAge((prev) => Math.max(minAge + 1, Math.min(prev + delta, 99)));
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -190,7 +217,7 @@ export default function ProfileScreen({ route, navigation }) {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        {/* Avatar section */}
+        {/* Avatar */}
         <View style={styles.avatarSection}>
           {mainPhoto ? (
             <Image source={{ uri: mainPhoto }} style={styles.avatar} />
@@ -200,11 +227,7 @@ export default function ProfileScreen({ route, navigation }) {
             </View>
           )}
           {!editing && (
-            <TouchableOpacity
-              style={styles.editAvatarBtn}
-              onPress={() => setEditing(true)}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={styles.editAvatarBtn} onPress={() => setEditing(true)} activeOpacity={0.8}>
               <Ionicons name="pencil" size={16} color="#fff" />
             </TouchableOpacity>
           )}
@@ -220,9 +243,7 @@ export default function ProfileScreen({ route, navigation }) {
         {/* Photo gallery */}
         <View style={styles.galleryCard}>
           <View style={styles.galleryHeader}>
-            <Text style={styles.galleryTitle}>
-              {editing ? "Mes photos" : "Photos"}
-            </Text>
+            <Text style={styles.galleryTitle}>{editing ? "Mes photos" : "Photos"}</Text>
             <Text style={styles.galleryCount}>{photos.length}/9</Text>
           </View>
           {editing && (
@@ -264,7 +285,7 @@ export default function ProfileScreen({ route, navigation }) {
           />
         </View>
 
-        {/* Form or Info */}
+        {/* Form or Actions */}
         {editing ? (
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>Modifier le profil</Text>
@@ -302,6 +323,58 @@ export default function ProfileScreen({ route, navigation }) {
             />
             <Text style={styles.charCount}>{bio.length}/200</Text>
 
+            {/* Preferences section */}
+            <View style={styles.prefsDivider} />
+            <Text style={styles.prefsTitle}>Préférences de recherche</Text>
+
+            <Text style={styles.label}>Tranche d'âge recherchée</Text>
+            <View style={styles.ageCard}>
+              <View style={styles.ageBlock}>
+                <Text style={styles.ageLabel}>Minimum</Text>
+                <View style={styles.counter}>
+                  <TouchableOpacity style={styles.counterBtn} onPress={() => changeMinAge(-1)} activeOpacity={0.7}>
+                    <Ionicons name="remove" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                  <Text style={styles.counterValue}>{minAge}</Text>
+                  <TouchableOpacity style={styles.counterBtn} onPress={() => changeMinAge(1)} activeOpacity={0.7}>
+                    <Ionicons name="add" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.ageDivider} />
+              <View style={styles.ageBlock}>
+                <Text style={styles.ageLabel}>Maximum</Text>
+                <View style={styles.counter}>
+                  <TouchableOpacity style={styles.counterBtn} onPress={() => changeMaxAge(-1)} activeOpacity={0.7}>
+                    <Ionicons name="remove" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                  <Text style={styles.counterValue}>{maxAge}</Text>
+                  <TouchableOpacity style={styles.counterBtn} onPress={() => changeMaxAge(1)} activeOpacity={0.7}>
+                    <Ionicons name="add" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Distance maximale</Text>
+            <View style={styles.chipsRow}>
+              {DISTANCE_OPTIONS.map((opt) => {
+                const sel = maxDistance === opt.value;
+                return (
+                  <TouchableOpacity
+                    key={String(opt.value)}
+                    style={[styles.chip, sel && styles.chipSelected]}
+                    onPress={() => setMaxDistance(opt.value)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.chipText, sel && styles.chipTextSelected]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             <View style={styles.row}>
               <TouchableOpacity style={styles.cancelBtn} onPress={cancel} activeOpacity={0.8}>
                 <Text style={styles.cancelText}>Annuler</Text>
@@ -322,11 +395,7 @@ export default function ProfileScreen({ route, navigation }) {
           </View>
         ) : (
           <View style={styles.actionsCard}>
-            <TouchableOpacity
-              style={styles.editBtn}
-              onPress={() => setEditing(true)}
-              activeOpacity={0.85}
-            >
+            <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(true)} activeOpacity={0.85}>
               <Ionicons name="pencil-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
               <Text style={styles.editBtnText}>Modifier le profil</Text>
             </TouchableOpacity>
@@ -355,9 +424,9 @@ const styles = StyleSheet.create({
   },
 
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     borderWidth: 3,
     borderColor: colors.surface,
     shadowColor: "#000",
@@ -374,7 +443,7 @@ const styles = StyleSheet.create({
   },
 
   avatarInitial: {
-    fontSize: 48,
+    fontSize: 44,
     color: colors.primary,
     fontWeight: "700",
   },
@@ -400,7 +469,7 @@ const styles = StyleSheet.create({
   },
 
   displayName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
     color: colors.text,
     marginBottom: 6,
@@ -433,26 +502,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  galleryTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.text,
-  },
-
-  galleryCount: {
-    fontSize: 13,
-    color: colors.textTertiary,
-    fontWeight: "600",
-  },
-
-  galleryHint: {
-    fontSize: 11,
-    color: colors.textTertiary,
-    marginBottom: 10,
-  },
-
+  galleryTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+  galleryCount: { fontSize: 13, color: colors.textTertiary, fontWeight: "600" },
+  galleryHint: { fontSize: 11, color: colors.textTertiary, marginBottom: 10 },
   galleryList: { gap: 10, paddingVertical: 4 },
-
   thumbWrapper: { position: "relative" },
 
   thumb: {
@@ -487,7 +540,7 @@ const styles = StyleSheet.create({
   },
 
   formCard: {
-    width: "100%",
+    alignSelf: "stretch",
     backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
@@ -525,7 +578,7 @@ const styles = StyleSheet.create({
   },
 
   bioInput: {
-    height: 90,
+    height: 88,
     textAlignVertical: "top",
     marginBottom: 4,
   },
@@ -536,6 +589,106 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginBottom: 4,
   },
+
+  /* Preferences */
+  prefsDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 20,
+  },
+
+  prefsTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 4,
+  },
+
+  ageCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    marginTop: 6,
+  },
+
+  ageBlock: {
+    flex: 1,
+    alignItems: "center",
+    gap: 8,
+  },
+
+  ageLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+
+  counter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  counterBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primaryLight,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,68,88,0.15)",
+  },
+
+  counterValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.text,
+    minWidth: 30,
+    textAlign: "center",
+  },
+
+  ageDivider: {
+    width: 1,
+    height: 52,
+    backgroundColor: colors.border,
+    marginHorizontal: 8,
+  },
+
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 6,
+  },
+
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 50,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+
+  chipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+
+  chipText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+
+  chipTextSelected: { color: "#fff" },
 
   row: { flexDirection: "row", gap: 10, marginTop: 20 },
 
@@ -574,9 +727,8 @@ const styles = StyleSheet.create({
   },
 
   actionsCard: {
-    width: "100%",
+    alignSelf: "stretch",
     gap: 10,
-    paddingHorizontal: 0,
   },
 
   editBtn: {
