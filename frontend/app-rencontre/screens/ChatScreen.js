@@ -24,45 +24,91 @@ import { playSound } from "../utils/sounds";
 
 const EMOJIS = ["❤️", "😂", "😮", "👍", "🔥", "😢"];
 
-function AudioPlayer({ url }) {
+const RATES = [1.0, 1.5, 2.0];
+
+function AudioPlayer({ url, onLongPress }) {
   const soundRef = useRef(null);
   const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [position, setPosition] = useState(0);
+  const [rateIdx, setRateIdx] = useState(0);
+  const rate = RATES[rateIdx];
+
+  const fmt = (ms) => {
+    const s = Math.floor((ms || 0) / 1000);
+    const m = Math.floor(s / 60);
+    return `${m}:${(s % 60).toString().padStart(2, "0")}`;
+  };
 
   const toggle = async () => {
     try {
       if (playing) {
         await soundRef.current?.pauseAsync();
         setPlaying(false);
-      } else {
-        if (!soundRef.current) {
-          const { sound } = await Audio.Sound.createAsync({ uri: url });
-          soundRef.current = sound;
-          sound.setOnPlaybackStatusUpdate((s) => {
-            if (s.didJustFinish) {
-              setPlaying(false);
-              soundRef.current = null;
-            }
-          });
-        }
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-        await soundRef.current.playAsync();
-        setPlaying(true);
+        return;
       }
+      if (!soundRef.current) {
+        const { sound, status } = await Audio.Sound.createAsync(
+          { uri: url },
+          { shouldPlay: false }
+        );
+        soundRef.current = sound;
+        if (status.durationMillis) setDuration(status.durationMillis);
+        sound.setOnPlaybackStatusUpdate((s) => {
+          if (!s.isLoaded) return;
+          setPosition(s.positionMillis || 0);
+          if (s.durationMillis) setDuration(s.durationMillis);
+          if (s.didJustFinish) {
+            setPlaying(false);
+            setPosition(0);
+            soundRef.current = null;
+          }
+        });
+        await sound.setRateAsync(rate, true);
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      await soundRef.current.playAsync();
+      setPlaying(true);
     } catch (e) {
       console.log("playback error:", e);
     }
+  };
+
+  const cycleRate = async () => {
+    const next = (rateIdx + 1) % RATES.length;
+    setRateIdx(next);
+    try {
+      await soundRef.current?.setRateAsync(RATES[next], true);
+    } catch (_) {}
   };
 
   useEffect(() => {
     return () => { soundRef.current?.unloadAsync(); };
   }, []);
 
+  const progress = duration > 0 ? position / duration : 0;
+
   return (
-    <TouchableOpacity style={styles.audioBubble} onPress={toggle}>
-      <Ionicons name={playing ? "pause" : "play"} size={20} color="#fff" />
-      <View style={styles.audioBar} />
-      <Text style={styles.audioLabel}>vocal</Text>
-    </TouchableOpacity>
+    <View style={styles.audioBubble}>
+      <Pressable onPress={toggle} onLongPress={onLongPress} delayLongPress={400} style={styles.audioPlayBtn}>
+        <Ionicons name={playing ? "pause-circle" : "play-circle"} size={36} color="#FF4458" />
+      </Pressable>
+
+      <View style={styles.audioBody}>
+        <View style={styles.audioTrack}>
+          <View style={[styles.audioFill, { flex: progress }]} />
+          <View style={[styles.audioEmpty, { flex: 1 - progress }]} />
+        </View>
+        <View style={styles.audioMeta}>
+          <Text style={styles.audioTime}>
+            {playing ? fmt(position) : fmt(duration)}
+          </Text>
+          <TouchableOpacity onPress={cycleRate} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.audioRate}>{rate === 1.0 ? "1×" : `${rate}×`}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -354,24 +400,28 @@ export default function ChatScreen({ route, navigation }) {
 
     return (
       <View style={[styles.messageWrapper, isMe ? styles.wrapperRight : styles.wrapperLeft]}>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onLongPress={() => openPicker(item.id)}
-          delayLongPress={400}
-        >
-          <View style={[styles.message, isMe ? styles.myMessage : styles.otherMessage]}>
-            {isAudio && item.audio_url ? (
-              <AudioPlayer url={item.audio_url} />
-            ) : (
-              <Text style={styles.messageText}>{item.content}</Text>
-            )}
+        {isAudio && item.audio_url ? (
+          <View style={[styles.message, styles.audioMessage, isMe ? styles.myMessage : styles.otherMessage]}>
+            <AudioPlayer url={item.audio_url} onLongPress={() => openPicker(item.id)} />
           </View>
-          {item.reaction && (
-            <View style={[styles.reactionBadge, isMe ? styles.reactionRight : styles.reactionLeft]}>
-              <Text style={styles.reactionEmoji}>{item.reaction}</Text>
+        ) : (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onLongPress={() => openPicker(item.id)}
+            delayLongPress={400}
+          >
+            <View style={[styles.message, isMe ? styles.myMessage : styles.otherMessage]}>
+              <Text style={styles.messageText}>{item.content}</Text>
             </View>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
+
+        {item.reaction && (
+          <View style={[styles.reactionBadge, isMe ? styles.reactionRight : styles.reactionLeft]}>
+            <Text style={styles.reactionEmoji}>{item.reaction}</Text>
+          </View>
+        )}
+
         {showStatus && (
           <Text style={[styles.checkmark, isRead && styles.checkmarkRead]}>
             {isRead ? "✓✓ Lu" : "✓ Envoyé"}
@@ -533,21 +583,51 @@ const styles = StyleSheet.create({
   },
   sendText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
 
+  audioMessage: { paddingHorizontal: 8, paddingVertical: 8 },
+
   audioBubble: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    minWidth: 120,
+    minWidth: 180,
+    gap: 10,
   },
-  audioBar: {
+  audioPlayBtn: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  audioBody: {
     flex: 1,
-    height: 3,
-    backgroundColor: "rgba(0,0,0,0.2)",
+    gap: 4,
+  },
+  audioTrack: {
+    flexDirection: "row",
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+    backgroundColor: "rgba(0,0,0,0.08)",
+  },
+  audioFill: {
+    backgroundColor: "#FF4458",
     borderRadius: 2,
   },
-  audioLabel: { fontSize: 11, color: "rgba(0,0,0,0.4)" },
+  audioEmpty: {
+    backgroundColor: "transparent",
+  },
+  audioMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  audioTime: { fontSize: 12, color: "#666" },
+  audioRate: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FF4458",
+    backgroundColor: "rgba(255,68,88,0.1)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
 
   pickerOverlay: {
     flex: 1,
