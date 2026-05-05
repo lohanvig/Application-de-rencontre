@@ -1,5 +1,5 @@
 import { useEffect, createRef } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { NavigationContainer } from "@react-navigation/native";
@@ -56,9 +56,9 @@ function MainTabs({ route }) {
           backgroundColor: "#fff",
           borderTopColor: "#EBEBEB",
           borderTopWidth: 1,
-          height: 62,
-          paddingBottom: 10,
           paddingTop: 8,
+          paddingBottom: Platform.OS === "ios" ? 4 : 10,
+          height: Platform.OS === "ios" ? 58 : 62,
         },
         tabBarLabelStyle: {
           fontSize: 11,

@@ -217,14 +217,25 @@ export default function HomeScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TouchableOpacity
-        style={styles.filterBtn}
-        onPress={() => navigation.navigate("Filters")}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="options-outline" size={22} color={colors.primary} />
-      </TouchableOpacity>
+      {/* Header banner */}
+      <View style={styles.header}>
+        <View style={styles.headerBrand}>
+          <View style={styles.headerLogo}>
+            <Ionicons name="heart" size={15} color="#fff" />
+          </View>
+          <Text style={styles.headerTitle}>Découvrir</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.filterBtn}
+          onPress={() => navigation.navigate("Filters")}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="options-outline" size={18} color={colors.primary} />
+          <Text style={styles.filterBtnText}>Filtres</Text>
+        </TouchableOpacity>
+      </View>
 
+      {/* Cards */}
       <View style={styles.cardArea}>
         {profiles[index + 1] && (
           <SwipeCard profile={profiles[index + 1]} isNext />
@@ -240,6 +251,7 @@ export default function HomeScreen({ route, navigation }) {
         )}
       </View>
 
+      {/* Action buttons */}
       <View style={styles.buttons}>
         <TouchableOpacity
           style={styles.nopeBtn}
@@ -267,12 +279,62 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
 
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+
+  headerBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  headerLogo: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.text,
+    letterSpacing: 0.2,
+  },
+
+  filterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
+
+  filterBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+
   cardArea: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 16,
-    marginTop: 8,
   },
 
   center: {
@@ -331,24 +393,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 15,
-  },
-
-  filterBtn: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    zIndex: 10,
-    backgroundColor: colors.surface,
-    borderRadius: 22,
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
   },
 
   buttons: {
