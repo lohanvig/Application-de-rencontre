@@ -12,7 +12,7 @@ import { playSound } from "../utils/sounds";
 
 export default function MatchSafeAreaView({ route, navigation }) {
 
-  const { userPhoto, match } = route.params;
+  const { userPhoto, match, matchId, currentUserId } = route.params;
 
   console.log("USER PHOTO:", userPhoto);
   console.log("MATCH PHOTO:", match.photo_url);
@@ -90,7 +90,7 @@ export default function MatchSafeAreaView({ route, navigation }) {
 
       <TouchableOpacity
         style={styles.messageBtn}
-        onPress={() => navigation.navigate("Chat", { user: match })}
+        onPress={() => navigation.navigate("ChatScreen", { matchId, user: match, currentUserId })}
       >
         <Text style={styles.messageText}>Send Message</Text>
       </TouchableOpacity>

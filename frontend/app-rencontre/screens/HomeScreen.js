@@ -173,7 +173,12 @@ export default function HomeScreen({ route, navigation }) {
       const response = await API.post("/like", { user_id: userId, liked_user_id: likedUserId });
       if (response.data.is_match) {
         playSound("match");
-        navigation.navigate("Match", { match: currentProfile, userPhoto: myPhoto });
+        navigation.navigate("Match", {
+          match: currentProfile,
+          userPhoto: myPhoto,
+          matchId: response.data.match_id,
+          currentUserId: userId,
+        });
       }
       nextProfile();
     } catch (error) {
