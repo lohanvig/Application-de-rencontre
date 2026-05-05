@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import { useHeaderHeight } from "@react-navigation/elements";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import API from "../api/api";
 import * as Notifications from "expo-notifications";
 import { useWS } from "../context/WebSocketContext";
@@ -82,6 +84,8 @@ export default function ChatScreen({ route, navigation }) {
   const recordingRef = useRef(null);
 
   const { subscribe, sendWS, markAsRead, clearActiveMatch } = useWS();
+  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
 
   const scrollToBottom = () => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -375,7 +379,7 @@ export default function ChatScreen({ route, navigation }) {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 120 : 80}
+      keyboardVerticalOffset={headerHeight}
     >
       <View style={{ flex: 1 }}>
         <FlatList
@@ -393,7 +397,7 @@ export default function ChatScreen({ route, navigation }) {
           </View>
         )}
 
-        <View style={styles.inputWrapper}>
+        <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 8 }]}>
           <Pressable
             onPressIn={startRecording}
             onPressOut={stopRecording}
@@ -481,6 +485,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: "row",
     padding: 8,
+    paddingBottom: 8,
     borderTopWidth: 1,
     borderColor: "#eee",
     backgroundColor: "#fff",

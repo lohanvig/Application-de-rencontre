@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import API from "../api/api";
 import { useWS } from "../context/WebSocketContext";
 
@@ -16,6 +18,7 @@ export default function MatchListScreen({ route, navigation }) {
 
   const [matches, setMatches] = useState([]);
   const { subscribe, unread, markAsRead, onlineUsers } = useWS();
+  const tabBarHeight = useBottomTabBarHeight();
 
   useEffect(() => {
     loadMatches();
@@ -156,12 +159,16 @@ export default function MatchListScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Messages</Text>
+        <Text style={styles.headerSub}>{matches.length} conversation{matches.length !== 1 ? "s" : ""}</Text>
+      </View>
       <FlatList
         data={matches}
         keyExtractor={(item) => item.match_id.toString()}
         renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: tabBarHeight + 12 }]}
         extraData={unread}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -171,16 +178,34 @@ export default function MatchListScreen({ route, navigation }) {
           </View>
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f8f8" },
 
-  listContent: {
+  header: {
+    paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    backgroundColor: "#fff",
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111",
+  },
+  headerSub: {
+    fontSize: 13,
+    color: "#aaa",
+    marginTop: 2,
+  },
+
+  listContent: {
+    paddingTop: 8,
     paddingHorizontal: 12,
   },
 
