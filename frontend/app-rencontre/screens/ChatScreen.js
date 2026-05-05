@@ -342,12 +342,18 @@ export default function ChatScreen({ route, navigation }) {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
+  const isLastFromMe = (item) => {
+    const myMessages = messages.filter((m) => m.sender_id === currentUserId);
+    return myMessages.length > 0 && myMessages[myMessages.length - 1] === item;
+  };
+
   const renderItem = ({ item }) => {
     const isMe = item.sender_id === currentUserId;
     const isAudio = item.content_type === "audio";
+    const showStatus = isMe && isLastFromMe(item);
 
     return (
-      <View style={[styles.messageRow, isMe ? styles.rowRight : styles.rowLeft]}>
+      <View style={[styles.messageWrapper, isMe ? styles.wrapperRight : styles.wrapperLeft]}>
         <TouchableOpacity
           activeOpacity={0.85}
           onLongPress={() => openPicker(item.id)}
@@ -366,9 +372,9 @@ export default function ChatScreen({ route, navigation }) {
             </View>
           )}
         </TouchableOpacity>
-        {isMe && (
+        {showStatus && (
           <Text style={[styles.checkmark, isRead && styles.checkmarkRead]}>
-            {isRead ? "✓✓" : "✓"}
+            {isRead ? "✓✓ Lu" : "✓ Envoyé"}
           </Text>
         )}
       </View>
@@ -441,16 +447,19 @@ export default function ChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f8f8" },
 
-  messageRow: { flexDirection: "row", alignItems: "flex-end", marginVertical: 3 },
-  rowRight: { justifyContent: "flex-end" },
-  rowLeft: { justifyContent: "flex-start" },
+  messageWrapper: {
+    marginVertical: 4,
+    maxWidth: "82%",
+  },
+  wrapperRight: { alignSelf: "flex-end", alignItems: "flex-end" },
+  wrapperLeft: { alignSelf: "flex-start", alignItems: "flex-start" },
 
-  message: { padding: 12, borderRadius: 20, maxWidth: "72%" },
+  message: { padding: 14, borderRadius: 20 },
   myMessage: { backgroundColor: "#DCF8C6" },
-  otherMessage: { backgroundColor: "#fff" },
-  messageText: { fontSize: 16 },
+  otherMessage: { backgroundColor: "#fff", elevation: 1, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
+  messageText: { fontSize: 16, lineHeight: 22 },
 
-  checkmark: { fontSize: 11, color: "#aaa", marginLeft: 4, marginBottom: 2 },
+  checkmark: { fontSize: 11, color: "#aaa", marginTop: 3, marginRight: 2 },
   checkmarkRead: { color: "#34B7F1" },
 
   reactionBadge: {

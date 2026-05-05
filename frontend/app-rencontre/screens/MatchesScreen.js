@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
 import { useWS } from "../context/WebSocketContext";
 
@@ -17,8 +18,15 @@ export default function MatchListScreen({ route, navigation }) {
   const userId = route?.params?.userId;
 
   const [matches, setMatches] = useState([]);
+  const [lastSeen, setLastSeen] = useState({});
   const { subscribe, unread, markAsRead, onlineUsers } = useWS();
   const tabBarHeight = useBottomTabBarHeight();
+
+  useEffect(() => {
+    AsyncStorage.getItem("lastSeen").then((data) => {
+      if (data) setLastSeen(JSON.parse(data));
+    });
+  }, []);
 
   useEffect(() => {
     loadMatches();
@@ -76,13 +84,16 @@ export default function MatchListScreen({ route, navigation }) {
   const openChat = useCallback(
     (item) => {
       markAsRead(item.match_id);
+      const updated = { ...lastSeen, [item.match_id]: new Date().toISOString() };
+      setLastSeen(updated);
+      AsyncStorage.setItem("lastSeen", JSON.stringify(updated));
       navigation.navigate("ChatScreen", {
         matchId: item.match_id,
         user: item,
         currentUserId: userId,
       });
     },
-    [markAsRead, navigation, userId]
+    [markAsRead, navigation, userId, lastSeen]
   );
 
   const unmatch = useCallback((matchId) => {
@@ -107,9 +118,22 @@ export default function MatchListScreen({ route, navigation }) {
     );
   }, []);
 
+  const formatTime = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const now = new Date();
+    const diffH = (now - d) / 3600000;
+    if (diffH < 24) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (diffH < 168) return d.toLocaleDateString([], { weekday: "short" });
+    return d.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
+  };
+
   const renderItem = ({ item }) => {
-    const unreadCount = unread[item.match_id] || 0;
-    const hasUnread = unreadCount > 0;
+    const wsUnread = unread[item.match_id] || 0;
+    const hasNewSinceLastSeen =
+      item.updated_at &&
+      (!lastSeen[item.match_id] || lastSeen[item.match_id] < item.updated_at);
+    const hasUnread = wsUnread > 0 || hasNewSinceLastSeen;
 
     return (
       <TouchableOpacity
@@ -118,6 +142,8 @@ export default function MatchListScreen({ route, navigation }) {
         onLongPress={() => unmatch(item.match_id)}
         activeOpacity={0.7}
       >
+        {hasUnread && <View style={styles.unreadBar} />}
+
         <View style={styles.avatarWrapper}>
           {item.photo_url ? (
             <Image source={{ uri: item.photo_url }} style={styles.avatar} />
@@ -134,9 +160,16 @@ export default function MatchListScreen({ route, navigation }) {
         </View>
 
         <View style={styles.info}>
-          <Text style={[styles.name, hasUnread && styles.nameUnread]}>
-            {item.username}
-          </Text>
+          <View style={styles.nameRow}>
+            <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>
+              {item.username}
+            </Text>
+            {item.updated_at && (
+              <Text style={styles.timeText}>
+                {formatTime(item.updated_at)}
+              </Text>
+            )}
+          </View>
           <Text
             style={[styles.lastMessage, hasUnread && styles.lastMessageUnread]}
             numberOfLines={1}
@@ -150,7 +183,7 @@ export default function MatchListScreen({ route, navigation }) {
         {hasUnread && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {wsUnread > 0 ? (wsUnread > 99 ? "99+" : wsUnread) : "●"}
             </Text>
           </View>
         )}
@@ -212,10 +245,12 @@ const styles = StyleSheet.create({
   matchItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    marginVertical: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginVertical: 3,
     backgroundColor: "#fff",
     borderRadius: 16,
+    overflow: "hidden",
     elevation: 1,
     shadowColor: "#000",
     shadowOpacity: 0.05,
@@ -224,19 +259,28 @@ const styles = StyleSheet.create({
   },
 
   matchItemUnread: {
-    backgroundColor: "#FFF5F5",
+    backgroundColor: "#FFFAF8",
     elevation: 3,
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
   },
 
-  avatarWrapper: {
-    position: "relative",
+  unreadBar: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: "#FF4458",
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
   },
+
+  avatarWrapper: { position: "relative" },
 
   avatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "#eee",
   },
 
@@ -256,8 +300,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 1,
     right: 1,
-    width: 14,
-    height: 14,
+    width: 13,
+    height: 13,
     borderRadius: 7,
     backgroundColor: "#4CD964",
     borderWidth: 2,
@@ -270,11 +314,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 3,
+  },
+
   name: {
     fontSize: 16,
     fontWeight: "500",
     color: "#222",
-    marginBottom: 3,
+    flex: 1,
   },
 
   nameUnread: {
@@ -282,18 +333,24 @@ const styles = StyleSheet.create({
     color: "#000",
   },
 
+  timeText: {
+    fontSize: 12,
+    color: "#bbb",
+    marginLeft: 8,
+  },
+
   lastMessage: {
     fontSize: 14,
-    color: "#999",
+    color: "#aaa",
   },
 
   lastMessageUnread: {
-    color: "#444",
-    fontWeight: "500",
+    color: "#333",
+    fontWeight: "600",
   },
 
   badge: {
-    backgroundColor: "#FF3B30",
+    backgroundColor: "#FF4458",
     borderRadius: 12,
     minWidth: 22,
     height: 22,
