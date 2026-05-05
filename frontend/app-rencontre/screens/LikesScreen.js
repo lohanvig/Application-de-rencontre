@@ -18,13 +18,20 @@ export default function LikesScreen({ route, navigation }) {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [myPhoto, setMyPhoto] = useState(null);
-  const { onlineUsers } = useWS();
+  const { onlineUsers, subscribe } = useWS();
 
   useFocusEffect(
     useCallback(() => {
       load();
     }, [])
   );
+
+  useEffect(() => {
+    const unsubscribe = subscribe((msg) => {
+      if (msg.type === "new_like") load();
+    });
+    return unsubscribe;
+  }, [subscribe]);
 
   const load = async () => {
     setLoading(true);
@@ -54,7 +61,7 @@ export default function LikesScreen({ route, navigation }) {
       });
       setProfiles((prev) => prev.filter((p) => p.id !== profile.id));
       if (res.data.is_match) {
-        navigation.navigate("Match", { match: profile, userPhoto: myPhoto });
+        navigation.navigate("Match", { match: profile, userPhoto: myPhoto, matchId: res.data.match_id, currentUserId: userId });
       }
     } catch (err) {
       console.log("LIKE ERROR:", err);

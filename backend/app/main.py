@@ -141,12 +141,22 @@ def profiles_endpoint(
 
 # 💘 LIKE
 @app.post("/like")
-def like_endpoint(like: LikeAction):
+async def like_endpoint(like: LikeAction):
 
     data, is_match, match_id = add_like(
         like.user_id,
         like.liked_user_id
     )
+
+    # Notify liked user in real-time (new like received)
+    if like.liked_user_id in active_connections:
+        try:
+            await active_connections[like.liked_user_id].send_json({
+                "type": "new_like",
+                "sender_id": like.user_id,
+            })
+        except Exception:
+            active_connections.pop(like.liked_user_id, None)
 
     if is_match:
         other_user = supabase.table("users") \

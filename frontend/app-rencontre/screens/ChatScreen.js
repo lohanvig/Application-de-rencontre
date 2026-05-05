@@ -89,8 +89,8 @@ function AudioPlayer({ url, onLongPress }) {
   const progress = duration > 0 ? position / duration : 0;
 
   return (
-    <View style={styles.audioBubble}>
-      <Pressable onPress={toggle} onLongPress={onLongPress} delayLongPress={400} style={styles.audioPlayBtn}>
+    <Pressable onLongPress={onLongPress} delayLongPress={400} style={styles.audioBubble}>
+      <Pressable onPress={toggle} style={styles.audioPlayBtn}>
         <Ionicons name={playing ? "pause-circle" : "play-circle"} size={36} color="#FF4458" />
       </Pressable>
 
@@ -108,7 +108,7 @@ function AudioPlayer({ url, onLongPress }) {
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
