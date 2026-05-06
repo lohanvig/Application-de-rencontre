@@ -1,7 +1,10 @@
 import math
 import random
+from datetime import datetime, timedelta, timezone
 from app.database.supabase_client import supabase
 from app.service.match_service import check_and_create_match
+
+DISLIKE_COOLDOWN_HOURS = 24
 
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -53,10 +56,17 @@ def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None
     liked = supabase.table("likes").select("liked_user_id").eq("user_id", user_id).execute()
     liked_ids = [row["liked_user_id"] for row in (liked.data or [])]
 
+    # Exclure les dislikes récents (cooldown)
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=DISLIKE_COOLDOWN_HOURS)).isoformat()
+    disliked = supabase.table("dislikes").select("disliked_user_id").eq("user_id", user_id).gte("created_at", cutoff).execute()
+    disliked_ids = [row["disliked_user_id"] for row in (disliked.data or [])]
+
+    exclude_ids = list(set(liked_ids + disliked_ids))
+
     query = supabase.table("users").select("*").neq("id", user_id)
 
-    if liked_ids:
-        query = query.not_.in_("id", liked_ids)
+    if exclude_ids:
+        query = query.not_.in_("id", exclude_ids)
 
     try:
         blocked_by_me = supabase.table("blocks").select("blocked_user_id").eq("user_id", user_id).execute()
@@ -94,6 +104,10 @@ def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None
         photos_data = sorted(photos.data or [], key=lambda p: not p.get("is_main", False))
         all_photos = [p["photo_url"] for p in photos_data]
 
+        # Coordonnées floutées ±~900m pour la vie privée
+        lat_approx = round(u["latitude"] + random.uniform(-0.008, 0.008), 6) if u.get("latitude") else None
+        lon_approx = round(u["longitude"] + random.uniform(-0.008, 0.008), 6) if u.get("longitude") else None
+
         profiles.append({
             "id": u["id"],
             "username": u["username"],
@@ -102,10 +116,19 @@ def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None
             "photo_url": all_photos[0] if all_photos else None,
             "photos": all_photos,
             "distance": distance,
+            "lat_approx": lat_approx,
+            "lon_approx": lon_approx,
         })
 
     random.shuffle(profiles)
     return profiles
+
+
+def add_dislike(user_id, disliked_user_id):
+    supabase.table("dislikes").insert({
+        "user_id": user_id,
+        "disliked_user_id": disliked_user_id,
+    }).execute()
 
 
 def add_like(user_id, liked_user_id):

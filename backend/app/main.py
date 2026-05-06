@@ -9,7 +9,7 @@ import tempfile
 
 from app.service.user_service import create_or_get_user, login_user
 from app.service.photo_service import upload_photo
-from app.service.interaction_service import get_profiles_to_swipe, add_like, get_received_likes
+from app.service.interaction_service import get_profiles_to_swipe, add_like, add_dislike, get_received_likes
 from app.models.schemas import UserCreate, LikeAction
 
 import requests
@@ -181,6 +181,16 @@ async def like_endpoint(like: LikeAction):
         "is_match": is_match,
         "match_id": match_id
     }
+
+# 💔 DISLIKE
+class DislikeAction(BaseModel):
+    user_id: str
+    disliked_user_id: str
+
+@app.post("/dislike")
+def dislike_endpoint(data: DislikeAction):
+    add_dislike(data.user_id, data.disliked_user_id)
+    return {"success": True}
 
 # 💘 LIKES REÇUS
 @app.get("/likes/received/{user_id}")

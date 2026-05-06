@@ -18,6 +18,7 @@ import ChatScreen from "../screens/ChatScreen";
 import FiltersScreen from "../screens/FiltersScreen";
 import CallScreen from "../screens/CallScreen";
 import IncomingCallScreen from "../screens/IncomingCallScreen";
+import MapScreen from "../screens/MapScreen";
 
 import { WebSocketProvider } from "../context/WebSocketContext";
 import { Ionicons } from "@expo/vector-icons";
@@ -56,9 +57,9 @@ function MainTabs({ route }) {
           backgroundColor: "#fff",
           borderTopColor: "#EBEBEB",
           borderTopWidth: 1,
-          // Pas de hauteur fixe — React Navigation + SafeAreaProvider gèrent les insets
-          paddingTop: 9,
-          paddingBottom: Platform.OS === "ios" ? 0 : 8,
+          height: Platform.OS === "ios" ? 82 : 62,
+          paddingTop: 8,
+          paddingBottom: Platform.OS === "ios" ? 28 : 8,
         },
         tabBarLabelStyle: {
           fontSize: 10,
@@ -153,6 +154,11 @@ function AuthenticatedNavigator({ route }) {
           name="IncomingCall"
           component={IncomingCallScreen}
           options={{ headerShown: false, presentation: "fullScreenModal" }}
+        />
+        <AuthStack.Screen
+          name="Map"
+          component={MapScreen}
+          options={{ headerShown: false }}
         />
       </AuthStack.Navigator>
     </WebSocketProvider>

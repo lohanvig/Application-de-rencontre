@@ -13,14 +13,14 @@ import { Ionicons } from "@expo/vector-icons";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
 
-// Peek visible en bas de la carte suivante (px)
-const NEXT_PEEK = 20;
+// Décalage vertical du current card → le haut de la next card dépasse de ~16px
+const CARD_OFFSET_Y = 28;
 
 const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext, containerHeight }, ref) => {
   const position = useRef(new Animated.ValueXY()).current;
   const [photoIndex, setPhotoIndex] = useState(0);
 
-  // Hauteur de la carte = 92% de la zone disponible, ou fallback
+  // Hauteur = 92% de la zone disponible (assure qu'il n'y a pas de débordement)
   const cardH = containerHeight
     ? Math.floor(containerHeight * 0.92)
     : Math.floor(SCREEN_HEIGHT * 0.62);
@@ -79,11 +79,9 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext, containerHei
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !isNext,
-
       onPanResponderMove: (_, gesture) => {
         position.setValue({ x: gesture.dx, y: gesture.dy });
       },
-
       onPanResponderRelease: (evt, gesture) => {
         if (Math.abs(gesture.dx) < 8 && Math.abs(gesture.dy) < 8) {
           const { locationX } = evt.nativeEvent;
@@ -94,7 +92,6 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext, containerHei
           }
           return;
         }
-
         if (gesture.dx > SWIPE_THRESHOLD) swipeRight();
         else if (gesture.dx < -SWIPE_THRESHOLD) swipeLeft();
         else resetPosition();
@@ -104,26 +101,26 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext, containerHei
 
   const currentPhoto = photos[photoIndex];
 
-  // Décalage du haut de la carte suivante pour montrer le bas
-  // scale: 0.94 → les bords visuels reculent de cardH*0.03 de chaque côté
-  // Pour que le bas dépasse de NEXT_PEEK: top = cardH*0.03 + NEXT_PEEK
-  const nextCardTop = containerHeight
-    ? Math.floor(cardH * 0.03 + NEXT_PEEK)
-    : 30;
+  // ── Next card : scale 0.95, position à y=0 → son haut (~y=12) dépasse le current (y=28)
+  const nextCardStyle = {
+    transform: [{ scale: 0.95 }],
+  };
+
+  // ── Current card : translateY = gesture.dy + CARD_OFFSET_Y (décalé vers le bas)
+  const currentCardStyle = {
+    transform: [
+      { translateX: position.x },
+      { translateY: Animated.add(position.y, CARD_OFFSET_Y) },
+      { rotate },
+    ],
+  };
 
   return (
     <Animated.View
       style={[
         styles.card,
         { height: cardH },
-        isNext && { transform: [{ scale: 0.94 }], top: nextCardTop },
-        !isNext && {
-          transform: [
-            { translateX: position.x },
-            { translateY: position.y },
-            { rotate },
-          ],
-        },
+        isNext ? nextCardStyle : currentCardStyle,
       ]}
       {...(!isNext ? panResponder.panHandlers : {})}
     >
@@ -136,7 +133,7 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext, containerHei
         </View>
       )}
 
-      {/* Photo progress bars */}
+      {/* Barres de navigation photos */}
       {photos.length > 1 && (
         <View style={styles.dotsContainer}>
           {photos.map((_, i) => (
@@ -148,17 +145,17 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext, containerHei
         </View>
       )}
 
-      {/* LIKE badge */}
+      {/* Badge LIKE */}
       <Animated.View style={[styles.likeBadge, { opacity: likeOpacity }]}>
         <Text style={styles.likeText}>LIKE</Text>
       </Animated.View>
 
-      {/* NOPE badge */}
+      {/* Badge NOPE */}
       <Animated.View style={[styles.nopeBadge, { opacity: nopeOpacity }]}>
         <Text style={styles.nopeText}>NOPE</Text>
       </Animated.View>
 
-      {/* Info overlay */}
+      {/* Overlay info */}
       <View style={styles.infoOverlay} pointerEvents="none">
         <View style={styles.nameRow}>
           <Text style={styles.name}>
@@ -228,12 +225,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
 
-  dot: {
-    flex: 1,
-    height: 3,
-    borderRadius: 2,
-  },
-
+  dot: { flex: 1, height: 3, borderRadius: 2 },
   dotActive: { backgroundColor: "rgba(255,255,255,0.98)" },
   dotInactive: { backgroundColor: "rgba(255,255,255,0.35)" },
 
@@ -243,7 +235,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 56,
     paddingBottom: 22,
     backgroundColor: "rgba(0,0,0,0.42)",
   },

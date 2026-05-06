@@ -174,8 +174,11 @@ export default function HomeScreen({ route, navigation }) {
     } catch (error) {}
   };
 
-  const dislike = () => {
+  const dislike = async (dislikedUserId) => {
     playSound("nope");
+    try {
+      await API.post("/dislike", { user_id: userId, disliked_user_id: dislikedUserId });
+    } catch (e) {}
     nextProfile();
   };
 
@@ -221,14 +224,23 @@ export default function HomeScreen({ route, navigation }) {
           </View>
           <Text style={styles.headerTitle}>Découvrir</Text>
         </View>
-        <TouchableOpacity
-          style={styles.filterBtn}
-          onPress={() => navigation.navigate("Filters")}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="options-outline" size={17} color={colors.primary} />
-          <Text style={styles.filterBtnText}>Filtres</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.mapBtn}
+            onPress={() => navigation.navigate("Map", { userId })}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="map-outline" size={19} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.filterBtn}
+            onPress={() => navigation.navigate("Filters")}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="options-outline" size={17} color={colors.primary} />
+            <Text style={styles.filterBtnText}>Filtres</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Cards ── */}
@@ -323,6 +335,23 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#1A1A2E",
     letterSpacing: 0.1,
+  },
+
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  mapBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,68,88,0.06)",
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   filterBtn: {
