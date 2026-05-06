@@ -19,6 +19,7 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
 import { colors } from "../styles/theme";
+import { getMuted, toggleMute, loadMuteState } from "../utils/sounds";
 
 const DISTANCE_OPTIONS = [
   { label: "10 km", value: 10 },
@@ -87,6 +88,7 @@ export default function ProfileScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [muted, setMuted] = useState(false);
 
   // Champs éditables
   const [username, setUsername] = useState("");
@@ -107,7 +109,10 @@ export default function ProfileScreen({ route, navigation }) {
   const [maxAge, setMaxAge] = useState(50);
   const [maxDistance, setMaxDistance] = useState(null);
 
-  useEffect(() => { loadProfile(); }, []);
+  useEffect(() => {
+    loadProfile();
+    loadMuteState().then((m) => setMuted(m));
+  }, []);
 
   const loadProfile = async () => {
     try {
@@ -555,6 +560,29 @@ export default function ProfileScreen({ route, navigation }) {
               <Ionicons name="pencil-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
               <Text style={styles.editBtnText}>Modifier le profil</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.muteBtn}
+              onPress={async () => {
+                const newMuted = await toggleMute();
+                setMuted(newMuted);
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={muted ? "volume-mute-outline" : "volume-high-outline"}
+                size={18}
+                color={colors.textSecondary}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.muteBtnText}>
+                {muted ? "Sons désactivés" : "Sons activés"}
+              </Text>
+              <View style={[styles.togglePill, !muted && styles.togglePillOn]}>
+                <View style={[styles.toggleDot, !muted && styles.toggleDotOn]} />
+              </View>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.8}>
               <Ionicons name="log-out-outline" size={18} color="#FF4458" style={{ marginRight: 8 }} />
               <Text style={styles.logoutText}>Se déconnecter</Text>
@@ -954,6 +982,54 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: "700",
     fontSize: 15,
+  },
+
+  muteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+
+  muteBtnText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+
+  togglePill: {
+    width: 42,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.border,
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+
+  togglePillOn: {
+    backgroundColor: colors.primary,
+  },
+
+  toggleDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#fff",
+    alignSelf: "flex-start",
+  },
+
+  toggleDotOn: {
+    alignSelf: "flex-end",
   },
 
   logoutBtn: {

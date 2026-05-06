@@ -9,6 +9,7 @@ import {
   PanResponder,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { playSound } from "../utils/sounds";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 120;
@@ -86,9 +87,17 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext, containerHei
         if (Math.abs(gesture.dx) < 8 && Math.abs(gesture.dy) < 8) {
           const { locationX } = evt.nativeEvent;
           if (locationX < SCREEN_WIDTH * 0.4) {
-            setPhotoIndex((i) => Math.max(0, i - 1));
+            setPhotoIndex((i) => {
+              const next = Math.max(0, i - 1);
+              if (next !== i) playSound("photo");
+              return next;
+            });
           } else {
-            setPhotoIndex((i) => Math.min(photos.length - 1, i + 1));
+            setPhotoIndex((i) => {
+              const next = Math.min(photos.length - 1, i + 1);
+              if (next !== i) playSound("photo");
+              return next;
+            });
           }
           return;
         }

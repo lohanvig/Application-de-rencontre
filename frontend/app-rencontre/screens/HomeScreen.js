@@ -19,7 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import API from "../api/api";
 import SwipeCard from "../components/SwipeCard";
-import { playSound } from "../utils/sounds";
+import { playSound, loadMuteState, initAudio } from "../utils/sounds";
 import { colors } from "../styles/theme";
 
 export default function HomeScreen({ route, navigation }) {
@@ -46,6 +46,8 @@ export default function HomeScreen({ route, navigation }) {
         loadProfiles(loadedFilters, loc),
         loadMyPhoto(),
         setupPushToken(),
+        initAudio(),
+        loadMuteState(),
       ]);
       setLoading(false);
       initialLoadDone.current = true;
