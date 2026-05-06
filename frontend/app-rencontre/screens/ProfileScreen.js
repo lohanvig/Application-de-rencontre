@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -26,6 +28,58 @@ const DISTANCE_OPTIONS = [
   { label: "Illimité", value: null },
 ];
 
+const GENDERS = ["Homme", "Femme", "Non-binaire"];
+const SMOKING_OPTIONS = ["Non-fumeur", "Occasionnel", "Fumeur"];
+const ALCOHOL_OPTIONS = ["Jamais", "Social", "Régulier"];
+const SPORT_OPTIONS = ["Sédentaire", "Actif", "Très actif"];
+const RELATION_OPTIONS = ["Relation sérieuse", "Casual", "Amitié", "Je vois venir"];
+
+const formatDob = (d) => {
+  if (!d) return null;
+  return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1)
+    .toString()
+    .padStart(2, "0")}/${d.getFullYear()}`;
+};
+
+const isoToDate = (str) => {
+  if (!str) return null;
+  try { return new Date(str); } catch { return null; }
+};
+
+const dateToISO = (d) => {
+  if (!d) return null;
+  return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d
+    .getDate()
+    .toString()
+    .padStart(2, "0")}`;
+};
+
+const MAX_DOB = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 18);
+  return d;
+})();
+
+function ChipSelector({ options, value, onChange }) {
+  return (
+    <View style={styles.chipsRow}>
+      {options.map((opt) => {
+        const sel = value === opt;
+        return (
+          <TouchableOpacity
+            key={opt}
+            style={[styles.chip, sel && styles.chipSelected]}
+            onPress={() => onChange(sel ? null : opt)}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.chipText, sel && styles.chipTextSelected]}>{opt}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function ProfileScreen({ route, navigation }) {
   const { userId } = route.params;
 
@@ -34,11 +88,21 @@ export default function ProfileScreen({ route, navigation }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Champs éditables
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
-  const [age, setAge] = useState("");
+  const [dob, setDob] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [gender, setGender] = useState(null);
+  const [height, setHeight] = useState("");
+  const [smoking, setSmoking] = useState(null);
+  const [alcohol, setAlcohol] = useState(null);
+  const [sport, setSport] = useState(null);
+  const [relationshipType, setRelationshipType] = useState(null);
+
   const [photos, setPhotos] = useState([]);
 
+  // Préférences de recherche
   const [minAge, setMinAge] = useState(18);
   const [maxAge, setMaxAge] = useState(50);
   const [maxDistance, setMaxDistance] = useState(null);
@@ -56,7 +120,13 @@ export default function ProfileScreen({ route, navigation }) {
       setProfile(u);
       setUsername(u.username || "");
       setBio(u.bio || "");
-      setAge(u.age ? String(u.age) : "");
+      setDob(isoToDate(u.date_of_birth));
+      setGender(u.gender || null);
+      setHeight(u.height ? String(u.height) : "");
+      setSmoking(u.smoking || null);
+      setAlcohol(u.alcohol || null);
+      setSport(u.sport || null);
+      setRelationshipType(u.relationship_type || null);
       setPhotos(photosRes.data.photos || []);
       if (stored) {
         const f = JSON.parse(stored);
@@ -65,7 +135,6 @@ export default function ProfileScreen({ route, navigation }) {
         setMaxDistance(f.maxDistance ?? null);
       }
     } catch (err) {
-      console.log("PROFILE ERROR:", err);
       Alert.alert("Erreur", "Impossible de charger le profil.");
     } finally {
       setLoading(false);
@@ -80,11 +149,9 @@ export default function ProfileScreen({ route, navigation }) {
       quality: 0.8,
     });
     if (result.canceled) return;
-
     const uri = result.assets[0].uri;
     const formData = new FormData();
     formData.append("file", { uri, name: "photo.jpg", type: "image/jpeg" });
-
     try {
       const res = await API.post(`/user/${userId}/photo`, formData);
       const newUrl = res.data.photo_url;
@@ -92,8 +159,7 @@ export default function ProfileScreen({ route, navigation }) {
         const isFirst = prev.length === 0;
         return [...prev, { photo_url: newUrl, is_main: isFirst }];
       });
-    } catch (err) {
-      console.log("UPLOAD ERROR:", err);
+    } catch {
       Alert.alert("Erreur", "Impossible d'ajouter la photo.");
     }
   };
@@ -101,12 +167,8 @@ export default function ProfileScreen({ route, navigation }) {
   const setMainPhoto = async (photoUrl) => {
     try {
       await API.put(`/user/${userId}/photo/main`, { photo_url: photoUrl });
-      setPhotos((prev) =>
-        prev.map((p) => ({ ...p, is_main: p.photo_url === photoUrl }))
-      );
-    } catch (err) {
-      console.log("SET MAIN ERROR:", err);
-    }
+      setPhotos((prev) => prev.map((p) => ({ ...p, is_main: p.photo_url === photoUrl })));
+    } catch {}
   };
 
   const deletePhoto = (photoUrl) => {
@@ -124,9 +186,7 @@ export default function ProfileScreen({ route, navigation }) {
               if (!hasMain && remaining.length > 0) remaining[0].is_main = true;
               return remaining;
             });
-          } catch (err) {
-            console.log("DELETE PHOTO ERROR:", err);
-          }
+          } catch {}
         },
       },
     ]);
@@ -137,12 +197,9 @@ export default function ProfileScreen({ route, navigation }) {
       Alert.alert("Erreur", "Le prénom ne peut pas être vide.");
       return false;
     }
-    if (age) {
-      const parsed = parseInt(age);
-      if (isNaN(parsed) || parsed < 18 || parsed > 99) {
-        Alert.alert("Âge invalide", "L'âge doit être entre 18 et 99 ans.");
-        return false;
-      }
+    if (height && (isNaN(parseInt(height)) || parseInt(height) < 100 || parseInt(height) > 250)) {
+      Alert.alert("Taille invalide", "La taille doit être entre 100 et 250 cm.");
+      return false;
     }
     return true;
   };
@@ -151,24 +208,27 @@ export default function ProfileScreen({ route, navigation }) {
     if (!validate()) return;
     setSaving(true);
     try {
-      await Promise.all([
-        API.put(`/user/${userId}`, {
-          username: username.trim(),
-          bio: bio.trim(),
-          age: parseInt(age) || profile.age,
-        }),
-        AsyncStorage.setItem("swipeFilters", JSON.stringify({ minAge, maxAge, maxDistance })),
-      ]);
-      setProfile((prev) => ({
-        ...prev,
+      const updates = {
         username: username.trim(),
         bio: bio.trim(),
-        age: parseInt(age) || prev.age,
-      }));
+      };
+      if (dob) updates.date_of_birth = dateToISO(dob);
+      if (gender !== undefined) updates.gender = gender;
+      if (height) updates.height = parseInt(height);
+      if (smoking !== undefined) updates.smoking = smoking;
+      if (alcohol !== undefined) updates.alcohol = alcohol;
+      if (sport !== undefined) updates.sport = sport;
+      if (relationshipType !== undefined) updates.relationship_type = relationshipType;
+
+      await Promise.all([
+        API.put(`/user/${userId}`, updates),
+        AsyncStorage.setItem("swipeFilters", JSON.stringify({ minAge, maxAge, maxDistance })),
+      ]);
+      const refreshed = await API.get(`/user/${userId}`);
+      setProfile(refreshed.data);
       setEditing(false);
       Alert.alert("Succès ✅", "Profil mis à jour !");
-    } catch (err) {
-      console.log("SAVE ERROR:", err);
+    } catch {
       Alert.alert("Erreur", "Impossible de sauvegarder.");
     } finally {
       setSaving(false);
@@ -190,9 +250,16 @@ export default function ProfileScreen({ route, navigation }) {
   };
 
   const cancel = () => {
+    if (!profile) return;
     setUsername(profile.username || "");
     setBio(profile.bio || "");
-    setAge(profile.age ? String(profile.age) : "");
+    setDob(isoToDate(profile.date_of_birth));
+    setGender(profile.gender || null);
+    setHeight(profile.height ? String(profile.height) : "");
+    setSmoking(profile.smoking || null);
+    setAlcohol(profile.alcohol || null);
+    setSport(profile.sport || null);
+    setRelationshipType(profile.relationship_type || null);
     setEditing(false);
   };
 
@@ -200,6 +267,15 @@ export default function ProfileScreen({ route, navigation }) {
     setMinAge((prev) => Math.max(18, Math.min(prev + delta, maxAge - 1)));
   const changeMaxAge = (delta) =>
     setMaxAge((prev) => Math.max(minAge + 1, Math.min(prev + delta, 99)));
+
+  const onDateChange = (event, selectedDate) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+      if (event.type === "set" && selectedDate) setDob(selectedDate);
+    } else {
+      if (selectedDate) setDob(selectedDate);
+    }
+  };
 
   if (loading) {
     return (
@@ -210,13 +286,25 @@ export default function ProfileScreen({ route, navigation }) {
   }
 
   const mainPhoto = photos.find((p) => p.is_main)?.photo_url || photos[0]?.photo_url || null;
+  const displayAge = profile?.age;
+
+  // Badges à afficher en mode lecture
+  const infoBadges = [
+    profile?.gender,
+    profile?.height ? `${profile.height} cm` : null,
+    profile?.relationship_type,
+  ].filter(Boolean);
+
+  const lifestyleBadges = [
+    profile?.smoking,
+    profile?.alcohol,
+    profile?.sport,
+  ].filter(Boolean);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <ScrollView
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+
         {/* Avatar */}
         <View style={styles.avatarSection}>
           {mainPhoto ? (
@@ -233,23 +321,42 @@ export default function ProfileScreen({ route, navigation }) {
           )}
         </View>
 
+        {/* Mode lecture */}
         {!editing && (
           <View style={styles.nameSection}>
-            <Text style={styles.displayName}>{username}{age ? `, ${age}` : ""}</Text>
-            {!!bio && <Text style={styles.displayBio}>{bio}</Text>}
+            <Text style={styles.displayName}>
+              {username}{displayAge ? `, ${displayAge}` : ""}
+            </Text>
+            {infoBadges.length > 0 && (
+              <View style={styles.badgeRow}>
+                {infoBadges.map((b) => (
+                  <View key={b} style={styles.badge}>
+                    <Text style={styles.badgeText}>{b}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {lifestyleBadges.length > 0 && (
+              <View style={styles.badgeRow}>
+                {lifestyleBadges.map((b) => (
+                  <View key={b} style={[styles.badge, styles.badgeOutline]}>
+                    <Text style={styles.badgeOutlineText}>{b}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {!!profile?.bio && <Text style={styles.displayBio}>{profile.bio}</Text>}
           </View>
         )}
 
-        {/* Photo gallery */}
+        {/* Galerie photos */}
         <View style={styles.galleryCard}>
           <View style={styles.galleryHeader}>
             <Text style={styles.galleryTitle}>{editing ? "Mes photos" : "Photos"}</Text>
             <Text style={styles.galleryCount}>{photos.length}/9</Text>
           </View>
           {editing && (
-            <Text style={styles.galleryHint}>
-              Appui court = photo principale · Appui long = supprimer
-            </Text>
+            <Text style={styles.galleryHint}>Appui court = photo principale · Appui long = supprimer</Text>
           )}
           <FlatList
             data={editing ? [...photos, { add: true }] : photos}
@@ -285,11 +392,12 @@ export default function ProfileScreen({ route, navigation }) {
           />
         </View>
 
-        {/* Form or Actions */}
+        {/* Formulaire d'édition */}
         {editing ? (
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>Modifier le profil</Text>
 
+            {/* Prénom */}
             <Text style={styles.label}>Prénom</Text>
             <TextInput
               style={styles.input}
@@ -300,17 +408,55 @@ export default function ProfileScreen({ route, navigation }) {
               maxLength={30}
             />
 
-            <Text style={styles.label}>Âge</Text>
+            {/* Date de naissance */}
+            <Text style={styles.label}>Date de naissance</Text>
+            <TouchableOpacity
+              style={[styles.input, styles.inputRow]}
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="calendar-outline" size={16} color={colors.textTertiary} style={{ marginRight: 8 }} />
+              <Text style={{ color: dob ? colors.text : colors.textTertiary, fontSize: 15 }}>
+                {dob ? formatDob(dob) : "JJ/MM/AAAA"}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <View>
+                <DateTimePicker
+                  value={dob || new Date(2000, 0, 1)}
+                  mode="date"
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
+                  maximumDate={MAX_DOB}
+                  onChange={onDateChange}
+                />
+                {Platform.OS === "ios" && (
+                  <TouchableOpacity
+                    style={styles.dateConfirmBtn}
+                    onPress={() => setShowDatePicker(false)}
+                  >
+                    <Text style={styles.dateConfirmText}>Valider</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Sexe */}
+            <Text style={styles.label}>Sexe</Text>
+            <ChipSelector options={GENDERS} value={gender} onChange={setGender} />
+
+            {/* Taille */}
+            <Text style={styles.label}>Taille (cm)</Text>
             <TextInput
               style={styles.input}
-              value={age}
-              onChangeText={setAge}
+              value={height}
+              onChangeText={setHeight}
               keyboardType="numeric"
-              placeholder="Ton âge"
+              placeholder="Ex : 175"
               placeholderTextColor={colors.textTertiary}
-              maxLength={2}
+              maxLength={3}
             />
 
+            {/* Bio */}
             <Text style={styles.label}>Bio</Text>
             <TextInput
               style={[styles.input, styles.bioInput]}
@@ -323,11 +469,27 @@ export default function ProfileScreen({ route, navigation }) {
             />
             <Text style={styles.charCount}>{bio.length}/200</Text>
 
-            {/* Preferences section */}
-            <View style={styles.prefsDivider} />
-            <Text style={styles.prefsTitle}>Préférences de recherche</Text>
+            {/* Style de vie */}
+            <View style={styles.sectionDivider} />
+            <Text style={styles.sectionTitle}>Style de vie</Text>
 
-            <Text style={styles.label}>Tranche d'âge recherchée</Text>
+            <Text style={styles.label}>Tabac</Text>
+            <ChipSelector options={SMOKING_OPTIONS} value={smoking} onChange={setSmoking} />
+
+            <Text style={styles.label}>Alcool</Text>
+            <ChipSelector options={ALCOHOL_OPTIONS} value={alcohol} onChange={setAlcohol} />
+
+            <Text style={styles.label}>Sport</Text>
+            <ChipSelector options={SPORT_OPTIONS} value={sport} onChange={setSport} />
+
+            <Text style={styles.label}>Je recherche</Text>
+            <ChipSelector options={RELATION_OPTIONS} value={relationshipType} onChange={setRelationshipType} />
+
+            {/* Préférences de recherche */}
+            <View style={styles.sectionDivider} />
+            <Text style={styles.sectionTitle}>Préférences de recherche</Text>
+
+            <Text style={styles.label}>Tranche d'âge</Text>
             <View style={styles.ageCard}>
               <View style={styles.ageBlock}>
                 <Text style={styles.ageLabel}>Minimum</Text>
@@ -367,9 +529,7 @@ export default function ProfileScreen({ route, navigation }) {
                     onPress={() => setMaxDistance(opt.value)}
                     activeOpacity={0.75}
                   >
-                    <Text style={[styles.chipText, sel && styles.chipTextSelected]}>
-                      {opt.label}
-                    </Text>
+                    <Text style={[styles.chipText, sel && styles.chipTextSelected]}>{opt.label}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -385,11 +545,7 @@ export default function ProfileScreen({ route, navigation }) {
                 disabled={saving}
                 activeOpacity={0.85}
               >
-                {saving ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.saveText}>Enregistrer</Text>
-                )}
+                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.saveText}>Enregistrer</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -399,7 +555,6 @@ export default function ProfileScreen({ route, navigation }) {
               <Ionicons name="pencil-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
               <Text style={styles.editBtnText}>Modifier le profil</Text>
             </TouchableOpacity>
-
             <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.8}>
               <Ionicons name="log-out-outline" size={18} color="#FF4458" style={{ marginRight: 8 }} />
               <Text style={styles.logoutText}>Se déconnecter</Text>
@@ -442,11 +597,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  avatarInitial: {
-    fontSize: 44,
-    color: colors.primary,
-    fontWeight: "700",
-  },
+  avatarInitial: { fontSize: 44, color: colors.primary, fontWeight: "700" },
 
   editAvatarBtn: {
     position: "absolute",
@@ -465,14 +616,46 @@ const styles = StyleSheet.create({
   nameSection: {
     alignItems: "center",
     marginBottom: 20,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
+    gap: 8,
   },
 
   displayName: {
     fontSize: 22,
     fontWeight: "800",
     color: colors.text,
-    marginBottom: 6,
+  },
+
+  badgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  badge: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+
+  badgeText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.primary,
+  },
+
+  badgeOutline: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+
+  badgeOutlineText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.textSecondary,
   },
 
   displayBio: {
@@ -564,7 +747,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.textSecondary,
     marginBottom: 6,
-    marginTop: 12,
+    marginTop: 14,
   },
 
   input: {
@@ -575,6 +758,11 @@ const styles = StyleSheet.create({
     padding: 13,
     fontSize: 15,
     color: colors.text,
+  },
+
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   bioInput: {
@@ -590,19 +778,63 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  /* Preferences */
-  prefsDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 20,
+  dateConfirmBtn: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    marginTop: 8,
   },
 
-  prefsTitle: {
+  dateConfirmText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+
+  sectionDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginTop: 24,
+    marginBottom: 16,
+  },
+
+  sectionTitle: {
     fontSize: 15,
     fontWeight: "700",
     color: colors.text,
     marginBottom: 4,
   },
+
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 50,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+
+  chipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+
+  chipText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+
+  chipTextSelected: { color: "#fff" },
 
   ageCard: {
     flexDirection: "row",
@@ -660,35 +892,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginHorizontal: 8,
   },
-
-  chipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 6,
-  },
-
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 50,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-  },
-
-  chipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-
-  chipText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-
-  chipTextSelected: { color: "#fff" },
 
   row: { flexDirection: "row", gap: 10, marginTop: 20 },
 

@@ -13,6 +13,7 @@ import {
   Platform,
   useWindowDimensions,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import API from "../api/api";
@@ -27,20 +28,48 @@ const DISTANCE_OPTIONS = [
   { label: "Illimité", value: null },
 ];
 
+const GENDERS = ["Homme", "Femme", "Non-binaire"];
+
+const MAX_DOB = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 18);
+  return d;
+})();
+
+const formatDob = (d) => {
+  if (!d) return null;
+  return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1)
+    .toString()
+    .padStart(2, "0")}/${d.getFullYear()}`;
+};
+
+const dobToISO = (d) => {
+  if (!d) return null;
+  return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d
+    .getDate()
+    .toString()
+    .padStart(2, "0")}`;
+};
+
 export default function RegisterScreen({ navigation }) {
   const { height: screenH } = useWindowDimensions();
   const isSmall = screenH < 700;
 
   const [step, setStep] = useState(1);
+
+  // Étape 1
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [age, setAge] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [dob, setDob] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [gender, setGender] = useState(null);
   const [bio, setBio] = useState("");
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
+  // Étape 2
   const [minAge, setMinAge] = useState(18);
   const [maxAge, setMaxAge] = useState(50);
   const [maxDistance, setMaxDistance] = useState(null);
@@ -58,12 +87,13 @@ export default function RegisterScreen({ navigation }) {
       Alert.alert("Mot de passe trop court", "Minimum 6 caractères.");
       return false;
     }
-    if (age) {
-      const parsedAge = parseInt(age);
-      if (isNaN(parsedAge) || parsedAge < 18 || parsedAge > 99) {
-        Alert.alert("Âge invalide", "Tu dois avoir au moins 18 ans.");
-        return false;
-      }
+    if (!dob) {
+      Alert.alert("Date de naissance", "Merci d'entrer ta date de naissance.");
+      return false;
+    }
+    if (dob > MAX_DOB) {
+      Alert.alert("Âge invalide", "Tu dois avoir au moins 18 ans.");
+      return false;
     }
     return true;
   };
@@ -84,8 +114,9 @@ export default function RegisterScreen({ navigation }) {
         username: username.trim(),
         email: email.trim().toLowerCase(),
         password,
-        age: parseInt(age) || 18,
+        date_of_birth: dobToISO(dob),
         bio: bio.trim() || "Salut ! 👋",
+        gender,
       });
       const userId = response.data.user_id;
       await AsyncStorage.setItem("userId", userId);
@@ -119,6 +150,15 @@ export default function RegisterScreen({ navigation }) {
     if (!result.canceled) setImage(result.assets[0].uri);
   };
 
+  const onDateChange = (event, selectedDate) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+      if (event.type === "set" && selectedDate) setDob(selectedDate);
+    } else {
+      if (selectedDate) setDob(selectedDate);
+    }
+  };
+
   const photoSize = isSmall ? 88 : 110;
 
   return (
@@ -131,10 +171,10 @@ export default function RegisterScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Step indicator */}
+        {/* Indicateur d'étape */}
         <View style={styles.stepRow}>
           <View style={[styles.stepDot, styles.stepDotActive]}>
-            <Text style={styles.stepNum}>1</Text>
+            <Text style={styles.stepNumActive}>1</Text>
           </View>
           <View style={[styles.stepLine, step === 2 && styles.stepLineActive]} />
           <View style={[styles.stepDot, step === 2 && styles.stepDotActive]}>
@@ -149,6 +189,7 @@ export default function RegisterScreen({ navigation }) {
               <Text style={styles.subtitle}>Rejoins la communauté 💕</Text>
             </View>
 
+            {/* Photo */}
             <TouchableOpacity
               onPress={pickImage}
               style={[styles.photoPicker, { marginBottom: isSmall ? 16 : 24 }]}
@@ -160,9 +201,7 @@ export default function RegisterScreen({ navigation }) {
                   style={[styles.photoPreview, { width: photoSize, height: photoSize, borderRadius: photoSize / 2 }]}
                 />
               ) : (
-                <View
-                  style={[styles.photoPlaceholder, { width: photoSize, height: photoSize, borderRadius: photoSize / 2 }]}
-                >
+                <View style={[styles.photoPlaceholder, { width: photoSize, height: photoSize, borderRadius: photoSize / 2 }]}>
                   <Ionicons name="camera-outline" size={isSmall ? 26 : 32} color={colors.textTertiary} />
                   <Text style={styles.photoText}>Photo de profil</Text>
                 </View>
@@ -173,6 +212,7 @@ export default function RegisterScreen({ navigation }) {
             </TouchableOpacity>
 
             <View style={[styles.form, isSmall && { gap: 10 }]}>
+              {/* Prénom */}
               <View style={styles.inputRow}>
                 <Ionicons name="person-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
@@ -185,6 +225,7 @@ export default function RegisterScreen({ navigation }) {
                 />
               </View>
 
+              {/* Email */}
               <View style={styles.inputRow}>
                 <Ionicons name="mail-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
@@ -198,6 +239,7 @@ export default function RegisterScreen({ navigation }) {
                 />
               </View>
 
+              {/* Mot de passe */}
               <View style={styles.inputRow}>
                 <Ionicons name="lock-closed-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
@@ -217,19 +259,55 @@ export default function RegisterScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.inputRow}>
+              {/* Date de naissance */}
+              <TouchableOpacity
+                style={styles.inputRow}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.8}
+              >
                 <Ionicons name="calendar-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
-                <TextInput
-                  placeholder="Âge (18+)"
-                  keyboardType="numeric"
-                  style={styles.input}
-                  value={age}
-                  onChangeText={setAge}
-                  maxLength={2}
-                  placeholderTextColor={colors.textTertiary}
-                />
+                <Text style={[styles.input, { paddingTop: 0, lineHeight: 20 }, !dob && { color: colors.textTertiary }]}>
+                  {dob ? formatDob(dob) : "Date de naissance *"}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <View>
+                  <DateTimePicker
+                    value={dob || new Date(2000, 0, 1)}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    maximumDate={MAX_DOB}
+                    onChange={onDateChange}
+                  />
+                  {Platform.OS === "ios" && (
+                    <TouchableOpacity
+                      style={styles.dateConfirmBtn}
+                      onPress={() => setShowDatePicker(false)}
+                    >
+                      <Text style={styles.dateConfirmText}>Valider</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* Sexe */}
+              <View>
+                <Text style={styles.fieldLabel}>Sexe</Text>
+                <View style={styles.chipsRow}>
+                  {GENDERS.map((g) => (
+                    <TouchableOpacity
+                      key={g}
+                      style={[styles.chip, gender === g && styles.chipSelected]}
+                      onPress={() => setGender(g)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.chipText, gender === g && styles.chipTextSelected]}>{g}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
+              {/* Bio */}
               <View style={[styles.inputRow, styles.bioRow]}>
                 <Ionicons
                   name="pencil-outline"
@@ -262,7 +340,7 @@ export default function RegisterScreen({ navigation }) {
               <Text style={styles.subtitle}>Pour te montrer les bons profils ✨</Text>
             </View>
 
-            {/* Age range */}
+            {/* Tranche d'âge */}
             <View style={styles.prefBlock}>
               <View style={styles.prefHeader}>
                 <Ionicons name="person-outline" size={16} color={colors.primary} />
@@ -313,9 +391,7 @@ export default function RegisterScreen({ navigation }) {
                       onPress={() => setMaxDistance(opt.value)}
                       activeOpacity={0.75}
                     >
-                      <Text style={[styles.chipText, sel && styles.chipTextSelected]}>
-                        {opt.label}
-                      </Text>
+                      <Text style={[styles.chipText, sel && styles.chipTextSelected]}>{opt.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -327,18 +403,13 @@ export default function RegisterScreen({ navigation }) {
                 <Ionicons name="arrow-back" size={18} color={colors.textSecondary} />
                 <Text style={styles.backBtnText}>Retour</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={[styles.button, styles.buttonFlex, loading && { opacity: 0.7 }]}
                 onPress={register}
                 disabled={loading}
                 activeOpacity={0.85}
               >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>S'inscrire</Text>
-                )}
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>S'inscrire</Text>}
               </TouchableOpacity>
             </View>
           </>
@@ -381,9 +452,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  stepDotActive: {
-    backgroundColor: colors.primary,
-  },
+  stepDotActive: { backgroundColor: colors.primary },
 
   stepNum: {
     fontSize: 14,
@@ -392,20 +461,19 @@ const styles = StyleSheet.create({
   },
 
   stepNumActive: {
+    fontSize: 14,
+    fontWeight: "700",
     color: "#fff",
   },
 
   stepLine: {
-    flex: 0,
     width: 48,
     height: 2,
     backgroundColor: colors.border,
     marginHorizontal: 8,
   },
 
-  stepLineActive: {
-    backgroundColor: colors.primary,
-  },
+  stepLineActive: { backgroundColor: colors.primary },
 
   header: {
     alignItems: "center",
@@ -492,9 +560,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
 
-  inputIcon: {
-    marginRight: 11,
-  },
+  inputIcon: { marginRight: 11 },
 
   input: {
     flex: 1,
@@ -518,6 +584,57 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: -6,
   },
+
+  dateConfirmBtn: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+
+  dateConfirmText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    marginBottom: 8,
+    marginTop: 2,
+  },
+
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  chip: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 50,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+
+  chipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+
+  chipText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+
+  chipTextSelected: { color: "#fff" },
 
   button: {
     flexDirection: "row",
@@ -547,9 +664,7 @@ const styles = StyleSheet.create({
   },
 
   /* Step 2 */
-  prefBlock: {
-    marginBottom: 20,
-  },
+  prefBlock: { marginBottom: 20 },
 
   prefHeader: {
     flexDirection: "row",
@@ -621,36 +736,6 @@ const styles = StyleSheet.create({
     height: 56,
     backgroundColor: colors.border,
     marginHorizontal: 10,
-  },
-
-  chipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-
-  chip: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 50,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-  },
-
-  chipSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-
-  chipText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-
-  chipTextSelected: {
-    color: "#fff",
   },
 
   step2Btns: {

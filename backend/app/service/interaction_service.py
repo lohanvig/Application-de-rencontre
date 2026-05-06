@@ -1,10 +1,21 @@
 import math
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date as _date
 from app.database.supabase_client import supabase
 from app.service.match_service import check_and_create_match
 
 DISLIKE_COOLDOWN_HOURS = 24
+
+
+def calculate_age(dob_str):
+    if not dob_str:
+        return None
+    try:
+        dob = _date.fromisoformat(str(dob_str)[:10])
+        today = _date.today()
+        return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    except Exception:
+        return None
 
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -42,8 +53,9 @@ def get_received_likes(user_id):
         profiles.append({
             "id": u["id"],
             "username": u["username"],
-            "age": u["age"],
-            "bio": u["bio"],
+            "age": calculate_age(u.get("date_of_birth")),
+            "bio": u.get("bio"),
+            "gender": u.get("gender"),
             "photo_url": all_photos[0] if all_photos else None,
             "photos": all_photos,
         })
@@ -56,7 +68,6 @@ def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None
     liked = supabase.table("likes").select("liked_user_id").eq("user_id", user_id).execute()
     liked_ids = [row["liked_user_id"] for row in (liked.data or [])]
 
-    # Exclure les dislikes récents (cooldown)
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=DISLIKE_COOLDOWN_HOURS)).isoformat()
     disliked = supabase.table("dislikes").select("disliked_user_id").eq("user_id", user_id).gte("created_at", cutoff).execute()
     disliked_ids = [row["disliked_user_id"] for row in (disliked.data or [])]
@@ -78,16 +89,18 @@ def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None
     except Exception:
         pass
 
-    if min_age is not None:
-        query = query.gte("age", min_age)
-    if max_age is not None:
-        query = query.lte("age", max_age)
-
     users = (query.execute()).data or []
 
     profiles = []
 
     for u in users:
+        age = calculate_age(u.get("date_of_birth"))
+
+        if min_age is not None and (age is None or age < min_age):
+            continue
+        if max_age is not None and (age is None or age > max_age):
+            continue
+
         distance = None
         if lat is not None and lon is not None and u.get("latitude") and u.get("longitude"):
             distance = haversine(lat, lon, u["latitude"], u["longitude"])
@@ -104,15 +117,20 @@ def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None
         photos_data = sorted(photos.data or [], key=lambda p: not p.get("is_main", False))
         all_photos = [p["photo_url"] for p in photos_data]
 
-        # Coordonnées floutées ±~900m pour la vie privée
         lat_approx = round(u["latitude"] + random.uniform(-0.008, 0.008), 6) if u.get("latitude") else None
         lon_approx = round(u["longitude"] + random.uniform(-0.008, 0.008), 6) if u.get("longitude") else None
 
         profiles.append({
             "id": u["id"],
             "username": u["username"],
-            "age": u["age"],
-            "bio": u["bio"],
+            "age": age,
+            "bio": u.get("bio"),
+            "gender": u.get("gender"),
+            "height": u.get("height"),
+            "smoking": u.get("smoking"),
+            "alcohol": u.get("alcohol"),
+            "sport": u.get("sport"),
+            "relationship_type": u.get("relationship_type"),
             "photo_url": all_photos[0] if all_photos else None,
             "photos": all_photos,
             "distance": distance,
@@ -132,16 +150,11 @@ def add_dislike(user_id, disliked_user_id):
 
 
 def add_like(user_id, liked_user_id):
-    """
-    Ajoute un like et vérifie si c'est un match
-    """
-
     response = supabase.table("likes").insert({
         "user_id": user_id,
         "liked_user_id": liked_user_id
     }).execute()
 
-    # vérifier le match
     is_match, match_id = check_and_create_match(user_id, liked_user_id)
 
     if is_match:

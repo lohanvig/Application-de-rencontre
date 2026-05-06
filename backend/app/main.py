@@ -9,7 +9,7 @@ import tempfile
 
 from app.service.user_service import create_or_get_user, login_user
 from app.service.photo_service import upload_photo
-from app.service.interaction_service import get_profiles_to_swipe, add_like, add_dislike, get_received_likes
+from app.service.interaction_service import get_profiles_to_swipe, add_like, add_dislike, get_received_likes, calculate_age
 from app.models.schemas import UserCreate, LikeAction
 
 import requests
@@ -41,8 +41,9 @@ def create_user_endpoint(user: UserCreate):
         user.username,
         user.email,
         user.password,
-        user.age,
-        user.bio
+        user.date_of_birth,
+        user.bio,
+        user.gender,
     )
     return {"user_id": u["id"]}
 
@@ -83,9 +84,16 @@ def get_user(user_id: str):
     return {
         "id": u["id"],
         "username": u["username"],
-        "age": u["age"],
-        "bio": u["bio"],
-        "photo_url": photo_url
+        "date_of_birth": u.get("date_of_birth"),
+        "age": calculate_age(u.get("date_of_birth")),
+        "bio": u.get("bio"),
+        "gender": u.get("gender"),
+        "height": u.get("height"),
+        "smoking": u.get("smoking"),
+        "alcohol": u.get("alcohol"),
+        "sport": u.get("sport"),
+        "relationship_type": u.get("relationship_type"),
+        "photo_url": photo_url,
     }
 
 # 🔑 LOGIN
@@ -104,7 +112,13 @@ def login_endpoint(data: LoginData):
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     bio: Optional[str] = None
-    age: Optional[int] = None
+    date_of_birth: Optional[str] = None
+    gender: Optional[str] = None
+    height: Optional[int] = None
+    smoking: Optional[str] = None
+    alcohol: Optional[str] = None
+    sport: Optional[str] = None
+    relationship_type: Optional[str] = None
 
 @app.put("/user/{user_id}")
 def update_user(user_id: str, data: UserUpdate):

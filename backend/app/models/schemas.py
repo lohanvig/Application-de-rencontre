@@ -5,8 +5,9 @@ class UserCreate(BaseModel):
     username: str
     email: str
     password: str
-    age: int
+    date_of_birth: str  # YYYY-MM-DD
     bio: str
+    gender: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: str
