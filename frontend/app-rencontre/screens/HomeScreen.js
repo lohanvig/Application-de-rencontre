@@ -30,13 +30,14 @@ export default function HomeScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [myPhoto, setMyPhoto] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
-  const [filters, setFilters] = useState({ minAge: 18, maxAge: 50, maxDistance: null });
+  const [filters, setFilters] = useState({ minAge: 18, maxAge: 50, maxDistance: null, genderPref: null });
   const [cardAreaH, setCardAreaH] = useState(0);
 
   const notificationListener = useRef();
   const responseListener = useRef();
   const cardRef = useRef();
   const initialLoadDone = useRef(false);
+  const loadedFiltersKey = useRef(null);
 
   useEffect(() => {
     const init = async () => {
@@ -60,6 +61,10 @@ export default function HomeScreen({ route, navigation }) {
       if (!initialLoadDone.current) return;
       AsyncStorage.getItem("swipeFilters").then((stored) => {
         const newFilters = stored ? JSON.parse(stored) : filters;
+        const newKey = JSON.stringify(newFilters);
+        // Ne recharge que si les filtres ont changé depuis le dernier chargement
+        if (newKey === loadedFiltersKey.current) return;
+        loadedFiltersKey.current = newKey;
         setFilters(newFilters);
         setIndex(0);
         loadProfiles(newFilters, userLocation);
@@ -73,10 +78,13 @@ export default function HomeScreen({ route, navigation }) {
       if (stored) {
         const parsed = JSON.parse(stored);
         setFilters(parsed);
+        loadedFiltersKey.current = stored;
         return parsed;
       }
     } catch (e) {}
-    return { minAge: 18, maxAge: 50, maxDistance: null };
+    const defaults = { minAge: 18, maxAge: 50, maxDistance: null, genderPref: null };
+    loadedFiltersKey.current = JSON.stringify(defaults);
+    return defaults;
   };
 
   const setupLocation = async () => {
@@ -140,6 +148,7 @@ export default function HomeScreen({ route, navigation }) {
       if (filtersToUse?.minAge) params.min_age = filtersToUse.minAge;
       if (filtersToUse?.maxAge) params.max_age = filtersToUse.maxAge;
       if (filtersToUse?.maxDistance) params.max_distance = filtersToUse.maxDistance;
+      if (filtersToUse?.genderPref) params.gender_pref = filtersToUse.genderPref;
       if (loc) {
         params.lat = loc.latitude;
         params.lon = loc.longitude;

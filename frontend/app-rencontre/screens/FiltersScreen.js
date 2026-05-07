@@ -19,10 +19,18 @@ const DISTANCE_OPTIONS = [
   { label: "Illimité", value: null },
 ];
 
+const GENDER_OPTIONS = [
+  { label: "Tout le monde", value: null },
+  { label: "Femmes", value: "Femme" },
+  { label: "Hommes", value: "Homme" },
+  { label: "Non-binaire", value: "Non-binaire" },
+];
+
 export default function FiltersScreen({ navigation }) {
   const [minAge, setMinAge] = useState(18);
   const [maxAge, setMaxAge] = useState(50);
   const [maxDistance, setMaxDistance] = useState(null);
+  const [genderPref, setGenderPref] = useState(null);
 
   useEffect(() => {
     AsyncStorage.getItem("swipeFilters").then((stored) => {
@@ -31,6 +39,7 @@ export default function FiltersScreen({ navigation }) {
         setMinAge(f.minAge ?? 18);
         setMaxAge(f.maxAge ?? 50);
         setMaxDistance(f.maxDistance ?? null);
+        setGenderPref(f.genderPref ?? null);
       }
     });
   }, []);
@@ -46,7 +55,7 @@ export default function FiltersScreen({ navigation }) {
   const save = async () => {
     await AsyncStorage.setItem(
       "swipeFilters",
-      JSON.stringify({ minAge, maxAge, maxDistance })
+      JSON.stringify({ minAge, maxAge, maxDistance, genderPref })
     );
     navigation.goBack();
   };
@@ -104,6 +113,32 @@ export default function FiltersScreen({ navigation }) {
                 <Ionicons name="add" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+
+        {/* Genre section */}
+        <View style={styles.sectionHeader}>
+          <Ionicons name="people-outline" size={18} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Je recherche</Text>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.chips}>
+            {GENDER_OPTIONS.map((opt) => {
+              const selected = genderPref === opt.value;
+              return (
+                <TouchableOpacity
+                  key={String(opt.value)}
+                  style={[styles.chip, selected && styles.chipSelected]}
+                  onPress={() => setGenderPref(opt.value)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 

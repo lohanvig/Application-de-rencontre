@@ -149,8 +149,9 @@ def profiles_endpoint(
     max_distance: Optional[int] = Query(None),
     lat: Optional[float] = Query(None),
     lon: Optional[float] = Query(None),
+    gender_pref: Optional[str] = Query(None),
 ):
-    profiles = get_profiles_to_swipe(user_id, min_age, max_age, max_distance, lat, lon)
+    profiles = get_profiles_to_swipe(user_id, min_age, max_age, max_distance, lat, lon, gender_pref)
     return {"profiles": profiles}
 
 # 💘 LIKE

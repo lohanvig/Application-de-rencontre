@@ -177,6 +177,32 @@ const SwipeCard = forwardRef(({ profile, onLike, onDislike, isNext, containerHei
             </View>
           )}
         </View>
+
+        {/* Badges genre + taille */}
+        {(!!profile.gender || !!profile.height) && (
+          <View style={styles.badgeRow}>
+            {!!profile.gender && (
+              <View style={styles.infoBadge}>
+                <Ionicons
+                  name={
+                    profile.gender === "Femme" ? "female" :
+                    profile.gender === "Homme" ? "male" : "male-female"
+                  }
+                  size={11}
+                  color="rgba(255,255,255,0.95)"
+                />
+                <Text style={styles.infoBadgeText}>{profile.gender}</Text>
+              </View>
+            )}
+            {!!profile.height && (
+              <View style={styles.infoBadge}>
+                <Ionicons name="resize-outline" size={11} color="rgba(255,255,255,0.95)" />
+                <Text style={styles.infoBadgeText}>{profile.height} cm</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {!!profile.bio && (
           <Text style={styles.bio} numberOfLines={2}>
             {profile.bio}
@@ -278,6 +304,31 @@ const styles = StyleSheet.create({
 
   distanceText: {
     fontSize: 12,
+    color: "rgba(255,255,255,0.95)",
+    fontWeight: "600",
+  },
+
+  badgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 6,
+  },
+
+  infoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+
+  infoBadgeText: {
+    fontSize: 11,
     color: "rgba(255,255,255,0.95)",
     fontWeight: "600",
   },

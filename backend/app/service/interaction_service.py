@@ -63,7 +63,7 @@ def get_received_likes(user_id):
     return profiles
 
 
-def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None, lat=None, lon=None):
+def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None, lat=None, lon=None, gender_pref=None):
 
     liked = supabase.table("likes").select("liked_user_id").eq("user_id", user_id).execute()
     liked_ids = [row["liked_user_id"] for row in (liked.data or [])]
@@ -99,6 +99,9 @@ def get_profiles_to_swipe(user_id, min_age=None, max_age=None, max_distance=None
         if min_age is not None and (age is None or age < min_age):
             continue
         if max_age is not None and (age is None or age > max_age):
+            continue
+
+        if gender_pref is not None and u.get("gender") != gender_pref:
             continue
 
         distance = None
